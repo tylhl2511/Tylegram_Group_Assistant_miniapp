@@ -7,12 +7,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from telethon import TelegramClient
 from telethon.tl.types import PeerChannel
-from telethon.sessions import StringSession
+from telethon.sessions import StringSession # <-- THÊM DÒNG NÀY
 
 # ====== CẤU HÌNH CỦA BẠN (Sửa tại đây) ======
-API_ID = int(os.environ.get("TG_API_ID") or 27615626) # Sửa ID của bạn
-API_HASH = os.environ.get("TG_API_HASH") or "bba8d22dd8ba68463a621fcc7fb1ca5d" # Sửa HASH của bạn
-TELETHON_SESSION = os.environ.get("1BVtsOJgBu5mDHa63_0ZoWAOQmkXbJmL75QYrhIXXIlwa469Hn6R1MvPSn3q5VFrTeBm3GdE7cRMOGQcsnr9Onybc10liJa2M2kD4YGawzJcnD87xmjO7KpzxkzELOJ61zlbQ0Xjg_DA_gu_Wr5EpZbLCS1tvNI4JGafDJa1oV3MsvUmIgU633bxbzqlsu4AdQiOq0avTQqFKa8Wyze7qihFWjS2OzkxM7Jbc1xOAFucj6NySNkM0JprD4eAD643qxDLhNcrVbzvc8WRiQR2RxSojldlwOk73piXzPDF3zocyOe1tgMMdqgmlnKa3710Y6kRRxxFTNm2pF4ipcQc83sVTWukpVhE=")
+# Lấy từ Biến Môi Trường (Render sẽ cung cấp)
+API_ID = int(os.environ.get("TG_API_ID"))
+API_HASH = os.environ.get("TG_API_HASH")
+TELETHON_SESSION = os.environ.get("TG_SESSION") # <-- SỬA DÒNG NÀY
 
 GROUP_SOURCES = {
     -1003037580357: "Hẻm Gaming",
@@ -30,22 +31,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Cấu hình CORS (Cho phép Mini App gọi)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Cho phép tất cả (sẽ sửa sau)
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Khởi tạo Client (SỬA DÒNG NÀY)
+tele_client = TelegramClient(StringSession(TELETHON_SESSION), API_ID, API_HASH)
 
-# Khởi tạo Client (Giống như code cũ)
-tele_client = TelegramClient(StringSession(1BVtsOJgBu5mDHa63_0ZoWAOQmkXbJmL75QYrhIXXIlwa469Hn6R1MvPSn3q5VFrTeBm3GdE7cRMOGQcsnr9Onybc10liJa2M2kD4YGawzJcnD87xmjO7KpzxkzELOJ61zlbQ0Xjg_DA_gu_Wr5EpZbLCS1tvNI4JGafDJa1oV3MsvUmIgU633bxbzqlsu4AdQiOq0avTQqFKa8Wyze7qihFWjS2OzkxM7Jbc1xOAFucj6NySNkM0JprD4eAD643qxDLhNcrVbzvc8WRiQR2RxSojldlwOk73piXzPDF3zocyOe1tgMMdqgmlnKa3710Y6kRRxxFTNm2pF4ipcQc83sVTWukpVhE=), 27615626, bba8d22dd8ba68463a621fcc7fb1ca5d)
-
-# ====== CÁC HÀM UTILS (Giống code cũ) ======
+# ====== CÁC HÀM UTILS (Giữ nguyên) ======
+# ... (toàn bộ các hàm parse_vn_date, resolve_chat_entity, human_name_for_user) ...
 def escape_md(text: str):
     return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', str(text))
-
 def parse_vn_date(s: str) -> datetime.datetime:
     d = datetime.datetime.strptime(s, "%d/%m/%Y")
     start_local = d.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -58,19 +50,17 @@ def parse_vn_date(s: str) -> datetime.datetime:
     start_utc = start_local.astimezone(timezone.utc)
     end_utc = (start_local + timedelta(days=1)).astimezone(timezone.utc)
     return start_utc, end_utc
-
 async def resolve_chat_entity(raw: str):
     raw = raw.strip()
     if raw.startswith("https://t.me/") or raw.startswith("t.me/"):
         return await tele_client.get_entity(raw)
     try:
         cid = int(raw)
-        if cid < -1000000000000:
+        if cid < -100000000000A:
             cid = int(str(cid)[4:])
         return await tele_client.get_entity(PeerChannel(cid))
     except Exception:
         return await tele_client.get_entity(raw)
-
 async def human_name_for_user(user):
     uname = getattr(user, "username", None)
     if uname:
@@ -80,26 +70,22 @@ async def human_name_for_user(user):
     full = (first + " " + last).strip()
     return full or f"id:{user.id}"
 
-# ====== CÁC HÀM QUÉT LỊCH SỬ (Sửa để trả về JSON) ======
-
+# ====== CÁC HÀM QUÉT LỊCH SỬ (Giữ nguyên) ======
+# ... (toàn bộ hàm get_rankmem_data và get_checkgroup_data) ...
 async def get_rankmem_data(target, date_str_start, date_str_end):
-    """Quét top member và trả về dữ liệu (JSON)"""
     try:
         start_utc, _ = parse_vn_date(date_str_start)
         _, end_utc = parse_vn_date(date_str_end)
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ. Định dạng DD/MM/YYYY")
-
     async with tele_client:
         try:
             entity = await resolve_chat_entity(target)
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm {target}: {e}")
-
         counter = Counter()
         scanned = 0
         LIMIT = 10000
-
         try:
             async for msg in tele_client.iter_messages(entity, limit=LIMIT, offset_date=end_utc):
                 scanned += 1
@@ -111,10 +97,8 @@ async def get_rankmem_data(target, date_str_start, date_str_end):
                 if uid: counter[uid] += 1
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Lỗi khi quét tin nhắn: {e}")
-
         if not counter:
-            return {"scanned": scanned, "top": []} # Trả về mảng rỗng
-
+            return {"scanned": scanned, "top": []} 
         topn = 10
         rows = counter.most_common(topn)
         results = []
@@ -125,27 +109,21 @@ async def get_rankmem_data(target, date_str_start, date_str_end):
             except Exception:
                 name = f"id:{uid}"
             results.append({"rank": i, "name": name, "messages": cnt})
-        
         return {"scanned": scanned, "top": results, "group_title": getattr(entity, "title", str(target))}
-
 async def get_checkgroup_data(target, date_str_start, date_str_end):
-    """Quét join/leave và trả về dữ liệu (JSON)"""
     try:
         start_utc, _ = parse_vn_date(date_str_start)
         _, end_utc = parse_vn_date(date_str_end)
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ. Định dạng DD/MM/YYYY")
-
     async with tele_client:
         try:
             entity = await resolve_chat_entity(target)
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm {target}: {e}")
-
         joins, leaves = [], []
         scanned = 0
         LIMIT = 50000
-
         try:
             async for msg in tele_client.iter_messages(entity, limit=LIMIT, offset_date=end_utc):
                 scanned += 1
@@ -161,9 +139,6 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
                         leaves.append(getattr(action, "user_id", None))
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Lỗi khi quét tin nhắn: {e}")
-
-        # (Phần resolve tên không cần thiết cho API, chỉ cần số lượng)
-        
         return {
             "scanned": scanned,
             "joins": len(set(joins)),
@@ -171,26 +146,19 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
             "group_title": getattr(entity, "title", str(target))
         }
 
-# ====== CÁC ĐIỂM CUỐI API (API Endpoints) ======
-# Đây là các URL mà Mini App sẽ gọi
-
+# ====== CÁC ĐIỂM CUỐI API (Giữ nguyên) ======
+# ... (toàn bộ các hàm @app.get) ...
 @app.get("/")
 def read_root():
     return {"message": "Chào mừng đến với API Bot!"}
-
 @app.get("/api/groups")
 def get_groups_list():
-    """Trả về danh sách nhóm từ cấu hình"""
     return GROUP_SOURCES
-
 @app.get("/api/rankmem")
 async def api_rankmem(target: str, start_date: str, end_date: str):
-    """Endpoint cho /rankmem"""
     data = await get_rankmem_data(target, start_date, end_date)
     return data
-
 @app.get("/api/checkgroup")
 async def api_checkgroup(target: str, start_date: str, end_date: str):
-    """Endpoint cho /checkgroup"""
     data = await get_checkgroup_data(target, start_date, end_date)
     return data
