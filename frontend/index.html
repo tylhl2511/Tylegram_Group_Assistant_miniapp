@@ -6,7 +6,7 @@
     <title>Bot Điều Khiển</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* CSS để giao diện trông giống Telegram */
+        /* (CSS giữ nguyên, không thay đổi) */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
@@ -36,7 +36,7 @@
             border: 1px solid var(--tg-theme-hint-color, #ccc);
             background-color: var(--tg-theme-secondary-bg-color, #f8f8f8);
             color: var(--tg-theme-text-color, #000000);
-            box-sizing: border-box; /* Quan trọng */
+            box-sizing: border-box;
             font-size: 16px;
         }
         button {
@@ -54,7 +54,7 @@
             padding: 10px;
             background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
             border-radius: 8px;
-            white-space: pre-wrap; /* Hiển thị xuống dòng */
+            white-space: pre-wrap;
             word-wrap: break-word;
         }
         .loading {
@@ -94,15 +94,14 @@
     <script>
         // ==========================================================
         // SỬA URL NÀY BẰNG LINK RENDER CỦA BẠN
+        // (Bạn phải chắc chắn link này ĐÚNG)
         // ==========================================================
         const BACKEND_URL = "https://tele-miniapp-backend.onrender.com";
         // ==========================================================
 
-        // Khởi tạo Mini App
         const tg = window.Telegram.WebApp;
         tg.ready();
 
-        // Lấy các phần tử DOM
         const app = document.getElementById('app');
         const groupSelect = document.getElementById('group-select');
         const startDateInput = document.getElementById('start-date');
@@ -111,18 +110,24 @@
         const btnCheckgroup = document.getElementById('btn-checkgroup');
         const resultDiv = document.getElementById('result');
 
-        // Hàm tiện ích
+        // ========= ĐÃ SỬA LỖI TRONG HÀM NÀY =========
         function showLoading(isLoading) {
-            resultDiv.textContent = isLoading ? "Đang quét, vui lòng chờ..." : "";
+            // Chỉ hiển thị chữ "Đang quét..." khi bắt đầu
+            if (isLoading) {
+                resultDiv.textContent = "Đang quét, vui lòng chờ...";
+            }
+            // Chỉ vô hiệu hóa nút
             app.classList.toggle('loading', isLoading);
             btnRankmem.disabled = isLoading;
             btnCheckgroup.disabled = isLoading;
+            // (Đã xóa dòng code gây lỗi)
         }
+        // ===========================================
 
         function getParams() {
             const target = groupSelect.value;
             const startDate = startDateInput.value;
-            const endDate = endDateInput.value || startDate; // Nếu ngày KT trống, dùng ngày BĐ
+            const endDate = endDateInput.value || startDate;
 
             if (!target || !startDate) {
                 alert("Vui lòng chọn nhóm và ngày bắt đầu.");
@@ -131,18 +136,14 @@
             return { target, startDate, endDate };
         }
 
-        // Tải danh sách nhóm khi mở Mini App
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const response = await fetch(`${BACKEND_URL}/api/groups`);
-                if (!response.ok) {
-                    throw new Error(`Lỗi HTTP: ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`Lỗi HTTP: ${response.status}`);
                 const groups = await response.json();
                 
-                groupSelect.innerHTML = '<option value="">-- Chọn một nhóm --</option>'; // Xóa "Đang tải"
+                groupSelect.innerHTML = '<option value="">-- Chọn một nhóm --</option>'; 
                 
-                // Đổ danh sách nhóm vào (dropdown)
                 for (const [id, name] of Object.entries(groups)) {
                     const option = document.createElement('option');
                     option.value = id;
@@ -151,26 +152,21 @@
                 }
             } catch (error) {
                 groupSelect.innerHTML = '<option value="">Lỗi khi tải nhóm</option>';
-                resultDiv.textContent = `Lỗi kết nối Backend: ${error.message}\nKiểm tra lại BACKEND_URL.`;
+                resultDiv.textContent = `Lỗi kết nối Backend: ${error.message}\nHãy kiểm tra lại BACKEND_URL trong file index.html.`;
             }
         });
 
-        // Xử lý nút Quét Top 10
         btnRankmem.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
 
             showLoading(true);
             try {
-                // Gọi "Nhà Bếp"
                 const response = await fetch(`${BACKEND_URL}/api/rankmem?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
                 const data = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Lỗi không xác định');
-                }
+                if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
 
-                // Định dạng kết quả
                 let report = `🏆 Top 10 - ${data.group_title}\n`;
                 if (data.top.length === 0) {
                     report += "Không tìm thấy tin nhắn nào.";
@@ -180,40 +176,37 @@
                     });
                 }
                 report += `\n\n(Đã quét ${data.scanned} tin)`;
-                resultDiv.textContent = report;
+                
+                resultDiv.textContent = report; // <-- Gán kết quả
 
             } catch (error) {
                 resultDiv.textContent = `Lỗi: ${error.message}`;
             }
-            showLoading(false);
+            showLoading(false); // <-- Chỉ tắt loading (không xóa kết quả nữa)
         });
 
-        // Xử lý nút Quét Join/Leave
         btnCheckgroup.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
 
             showLoading(true);
             try {
-                // Gọi "Nhà Bếp"
                 const response = await fetch(`${BACKEND_URL}/api/checkgroup?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
                 const data = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Lỗi không xác định');
-                }
+                if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
 
-                // Định dạng kết quả
                 let report = `📊 Báo cáo - ${data.group_title}\n`;
                 report += `\n+ ${data.joins} thành viên join`;
                 report += `\n- ${data.leaves} thành viên rời`;
                 report += `\n\n(Đã quét ${data.scanned} tin)`;
-                resultDiv.textContent = report;
+                
+                resultDiv.textContent = report; // <-- Gán kết quả
 
             } catch (error) {
                 resultDiv.textContent = `Lỗi: ${error.message}`;
             }
-            showLoading(false);
+            showLoading(false); // <-- Chỉ tắt loading (không xóa kết quả nữa)
         });
 
     </script>
