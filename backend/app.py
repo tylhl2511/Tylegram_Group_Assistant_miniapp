@@ -7,13 +7,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from telethon import TelegramClient
 from telethon.tl.types import PeerChannel
-from telethon.sessions import StringSession # <-- THÊM DÒNG NÀY
+from telethon.sessions import StringSession
 
-# ====== CẤU HÌNH CỦA BẠN (Sửa tại đây) ======
-# Lấy từ Biến Môi Trường (Render sẽ cung cấp)
+# ====== CẤU HÌNH CỦA BẠN (Lấy từ Biến Môi Trường) ======
 API_ID = int(os.environ.get("TG_API_ID"))
 API_HASH = os.environ.get("TG_API_HASH")
-TELETHON_SESSION = os.environ.get("TG_SESSION") # <-- SỬA DÒNG NÀY
+TELETHON_SESSION = os.environ.get("TG_SESSION")
 
 GROUP_SOURCES = {
     -1003037580357: "Hẻm Gaming",
@@ -31,13 +30,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Khởi tạo Client (SỬA DÒNG NÀY)
+# Khởi tạo Client
 tele_client = TelegramClient(StringSession(TELETHON_SESSION), API_ID, API_HASH)
 
-# ====== CÁC HÀM UTILS (Giữ nguyên) ======
-# ... (toàn bộ các hàm parse_vn_date, resolve_chat_entity, human_name_for_user) ...
+# ====== CÁC HÀM UTILS ======
 def escape_md(text: str):
     return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', str(text))
+
 def parse_vn_date(s: str) -> datetime.datetime:
     d = datetime.datetime.strptime(s, "%d/%m/%Y")
     start_local = d.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -50,17 +49,22 @@ def parse_vn_date(s: str) -> datetime.datetime:
     start_utc = start_local.astimezone(timezone.utc)
     end_utc = (start_local + timedelta(days=1)).astimezone(timezone.utc)
     return start_utc, end_utc
+
 async def resolve_chat_entity(raw: str):
     raw = raw.strip()
     if raw.startswith("https://t.me/") or raw.startswith("t.me/"):
         return await tele_client.get_entity(raw)
     try:
         cid = int(raw)
-        if cid < -100000000000A:
+        
+        # ===== DÒNG ĐÃ SỬA LỖI (BỎ CHỮ 'A') =====
+        if cid < -1000000000000: 
+        # =======================================
             cid = int(str(cid)[4:])
         return await tele_client.get_entity(PeerChannel(cid))
     except Exception:
         return await tele_client.get_entity(raw)
+
 async def human_name_for_user(user):
     uname = getattr(user, "username", None)
     if uname:
@@ -71,7 +75,6 @@ async def human_name_for_user(user):
     return full or f"id:{user.id}"
 
 # ====== CÁC HÀM QUÉT LỊCH SỬ (Giữ nguyên) ======
-# ... (toàn bộ hàm get_rankmem_data và get_checkgroup_data) ...
 async def get_rankmem_data(target, date_str_start, date_str_end):
     try:
         start_utc, _ = parse_vn_date(date_str_start)
@@ -110,6 +113,7 @@ async def get_rankmem_data(target, date_str_start, date_str_end):
                 name = f"id:{uid}"
             results.append({"rank": i, "name": name, "messages": cnt})
         return {"scanned": scanned, "top": results, "group_title": getattr(entity, "title", str(target))}
+
 async def get_checkgroup_data(target, date_str_start, date_str_end):
     try:
         start_utc, _ = parse_vn_date(date_str_start)
@@ -147,7 +151,6 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
         }
 
 # ====== CÁC ĐIỂM CUỐI API (Giữ nguyên) ======
-# ... (toàn bộ các hàm @app.get) ...
 @app.get("/")
 def read_root():
     return {"message": "Chào mừng đến với API Bot!"}
