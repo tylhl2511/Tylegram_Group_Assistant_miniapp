@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bot Điều Khiển</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        /* (CSS Cũ giữ nguyên, tôi chỉ thêm 1 chút) */
+        /* (CSS Cũ giữ nguyên) */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
@@ -18,17 +17,8 @@
             color: var(--tg-theme-text-color, #000000);
             overscroll-behavior: none;
         }
-        .container {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        /* 🎨 Thêm CSS cho các nút sát nhau */
-        .button-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
+        .container { display: flex; flex-direction: column; gap: 15px; }
+        .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .button-group button, .container > button {
             width: 100%;
             padding: 10px;
@@ -58,15 +48,8 @@
             background-color: var(--tg-theme-button-color, #007aff);
             color: var(--tg-theme-button-text-color, #ffffff);
         }
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        label {
-            font-weight: 600;
-            font-size: 14px;
-        }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-weight: 600; font-size: 14px; }
         button:disabled { opacity: 0.5; }
         #result { margin-top: 15px; word-wrap: break-word; }
         .loading { opacity: 0.7; pointer-events: none; }
@@ -79,31 +62,36 @@
         .user-list-container h4 { margin: 0 0 10px 0; font-size: 15px; font-weight: 600; }
         .report-footer { margin-top: 15px; font-size: 13px; text-align: center; opacity: 0.7; }
         
-        /* 🎨 CSS cho Dashboard */
+        /* ============================================== */
+        /* === 🚀 THAY ĐỔI 1: CSS SANG 3 CỘT (3 Ô) === */
+        /* ============================================== */
         .dashboard-stats {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr; /* 3 cột bằng nhau */
             gap: 10px;
             margin-bottom: 15px;
         }
         .stat-item {
             background: var(--tg-theme-bg-color, #fff);
-            padding: 15px;
+            padding: 12px; /* Giảm padding 1 chút cho vừa */
             border-radius: 8px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            text-align: center; /* Vibe 3 ô thì nên center */
         }
         .stat-item .label {
-            font-size: 14px;
+            font-size: 13px; /* Cho chữ nhỏ lại 1 xíu */
             opacity: 0.8;
             margin-bottom: 5px;
         }
         .stat-item .value {
-            font-size: 20px;
+            font-size: 18px; /* Chữ nhỏ lại 1 xíu */
             font-weight: 600;
         }
+        /* ============================================== */
+
         .chart-container {
             position: relative;
-            height: 250px; /* Chiều cao biểu đồ */
+            height: 250px;
             width: 100%;
             margin-top: 15px;
         }
@@ -158,22 +146,26 @@
         const endDateInput = document.getElementById('end-date');
         const btnRankmem = document.getElementById('btn-rankmem');
         const btnCheckgroup = document.getElementById('btn-checkgroup');
-        const btnDashboard = document.getElementById('btn-dashboard'); // Nút mới
+        const btnDashboard = document.getElementById('btn-dashboard');
         const resultDiv = document.getElementById('result');
         const chartContainer = document.querySelector('.chart-container');
         
-        // Biến toàn cục để giữ "thể hiện" của biểu đồ
         let myChart = null;
 
+        // (Hàm showLoading, formatInputDate, getParams, DOMContentLoaded không đổi)
         function showLoading(isLoading) {
             if (isLoading) {
                 resultDiv.innerHTML = `<div class="report-card">Đang quét, vui lòng chờ...</div>`;
-                chartContainer.style.display = 'none'; // Ẩn biểu đồ cũ
+                // Sửa nhỏ: Phải lấy 'chartContainer' bằng ID mới chuẩn
+                const chartEl = document.getElementById('hourlyChart');
+                if (chartEl) {
+                    chartEl.parentElement.style.display = 'none';
+                }
             }
             app.classList.toggle('loading', isLoading);
             btnRankmem.disabled = isLoading;
             btnCheckgroup.disabled = isLoading;
-            btnDashboard.disabled = isLoading; // Vô hiệu hóa nút mới
+            btnDashboard.disabled = isLoading;
         }
         
         function formatInputDate(dateString) {
@@ -196,7 +188,6 @@
             return { target, startDate, endDate };
         }
 
-        // (Code load group không đổi)
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const response = await fetch(`${BACKEND_URL}/api/groups`);
@@ -215,7 +206,7 @@
             }
         });
 
-        // (Code nút Rankmem không đổi)
+        // (Hàm btnRankmem và btnCheckgroup không đổi)
         btnRankmem.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
@@ -239,14 +230,14 @@
                     </div>
                 `;
                 resultDiv.innerHTML = reportHTML;
-                chartContainer.style.display = 'none'; // Ẩn chart
+                const chartEl = document.getElementById('hourlyChart');
+                if (chartEl) chartEl.parentElement.style.display = 'none';
             } catch (error) {
                 resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
             }
             showLoading(false);
         });
 
-        // (Code nút Checkgroup không đổi)
         btnCheckgroup.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
@@ -284,7 +275,8 @@
                     </div>
                 `;
                 resultDiv.innerHTML = reportHTML;
-                chartContainer.style.display = 'none'; // Ẩn chart
+                const chartEl = document.getElementById('hourlyChart');
+                if (chartEl) chartEl.parentElement.style.display = 'none';
             } catch (error) {
                 resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
             }
@@ -292,15 +284,14 @@
         });
 
         // ==============================================
-        // === 🚀 THAY ĐỔI 4: CODE CHO NÚT DASHBOARD MỚI ===
+        // === 🚀 THAY ĐỔI 2: JAVASCRIPT BỎ Ô THỨ 4 ===
         // ==============================================
         btnDashboard.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
 
-            showLoading(true); // <-- Chỗ này xoá canvas
+            showLoading(true);
             
-            // Hủy biểu đồ cũ (nếu có)
             if (myChart) {
                 myChart.destroy();
             }
@@ -311,7 +302,6 @@
 
                 if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
 
-                // 1. Chuẩn bị data cho biểu đồ
                 const hourlyData = data.hourly_data || {};
                 const labels = [];
                 const chartData = [];
@@ -321,16 +311,14 @@
                     chartData.push(hourlyData[i] || 0); 
                 }
 
-                // 2. Hiển thị các chỉ số (Stats)
-                // **ĐÂY LÀ PHẦN SỬA QUAN TRỌNG NHẤT**
-                // reportHTML này sẽ TẠO LẠI cái canvas đã mất
+                // **Code HTML mới (chỉ 3 ô)**
                 const reportHTML = `
                     <div class="report-card">
                         <div class="report-header">📈 Dashboard - ${data.group_title}</div>
                         
                         <div class="dashboard-stats">
                             <div class="stat-item">
-                                <div class="label">Tổng bài viết</div>
+                                <div class="label">Tổng tin nhắn</div>
                                 <div class="value">${data.total_posts.toLocaleString('vi-VN')}</div>
                             </div>
                             <div class="stat-item">
@@ -341,11 +329,8 @@
                                 <div class="label">Tổng thành viên</div>
                                 <div class="value">${data.total_members.toLocaleString('vi-VN')}</div>
                             </div>
-                            <div class="stat-item">
-                                <div class="label">Tỷ lệ tham gia</div>
-                                <div class="value">${data.engagement_rate.toFixed(2)}%</div>
+                            
                             </div>
-                        </div>
                     </div>
 
                     <div class="chart-container" style="display: block;">
@@ -353,10 +338,9 @@
                     </div>
                 `;
                 
-                // Gán HTML mới (Lúc này 'hourlyChart' đã tồn tại)
                 resultDiv.innerHTML = reportHTML;
                 
-                // 3. Vẽ biểu đồ (Giờ nó sẽ tìm thấy 'hourlyChart' vì nó ở ngay trên)
+                // Code vẽ biểu đồ (giữ nguyên)
                 const ctx = document.getElementById('hourlyChart').getContext('2d');
                 myChart = new Chart(ctx, {
                     type: 'bar',
@@ -403,7 +387,6 @@
 
             } catch (error) {
                 resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
-                // Không cần ẩn chart-container vì nó đã bị xóa bởi showLoading
             }
             showLoading(false);
         });
