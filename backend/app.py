@@ -184,6 +184,85 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
             "group_title": getattr(entity, "title", str(target))
         }
 
+# === DÁN HÀM NÀY VÀO FILE BACKEND (FastAPI) ===
+
+async def get_dashboard_data(target, date_str_start, date_str_end):
+    try:
+        # Setup ngày tháng (giống hệt code cũ)
+        start_utc, _ = parse_vn_date(date_str_start)
+        _, end_utc = parse_vn_date(date_str_end)
+        
+        # Cần định nghĩa GMT+7 (bạn có thể copy từ hàm cũ)
+        class GMT7(datetime.tzinfo):
+            def utcoffset(self, dt): return timedelta(hours=7)
+            def tzname(self, dt): return "GMT+7"
+            def dst(self, dt): return timedelta(0)
+        gmt7 = GMT7()
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
+
+    async with tele_client:
+        try:
+            entity = await resolve_chat_entity(target)
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm {target}: {e}")
+
+        # === KHỞI TẠO CÁC BỘ ĐẾM ===
+        total_posts = 0       # 1. Đếm tổng bài viết
+        active_users = Counter()  # 2. Đếm thành viên hoạt động
+        hourly_density = Counter() # 3. Đếm mật độ theo giờ
+
+        scanned = 0 # Thêm biến đếm tin đã quét
+        LIMIT = 50000 # Giới hạn quét
+
+        try:
+            # Quét tin nhắn (giống hệt code cũ)
+            async for msg in tele_client.iter_messages(entity, limit=LIMIT, offset_date=end_utc):
+                scanned += 1
+                if not msg.date: continue
+                msg_dt_utc = msg.date.astimezone(timezone.utc)
+                
+                if msg_dt_utc < start_utc: break # Vẫn dừng khi hết ngày
+                if hasattr(msg, "action") and msg.action is not None: continue
+
+                # === GHI NHẬN DỮ LIỆU ===
+                total_posts += 1 # 1. Ghi nhận bài viết
+
+                uid = getattr(msg, "sender_id", None)
+                if uid:
+                    active_users[uid] += 1 # 2. Ghi nhận người gửi
+                
+                # 3. Ghi nhận giờ (đổi về giờ VN GMT+7)
+                msg_hour_vn = msg.date.astimezone(gmt7).hour # Lấy giờ (0-23)
+                hourly_density[msg_hour_vn] += 1
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lỗi khi quét tin nhắn: {e}")
+
+        # Lấy tổng thành viên (giống ý tưởng "Analytics" trước)
+        total_members = 0
+        try:
+            participants = await tele_client.get_participants(entity, limit=0)
+            total_members = participants.total
+        except Exception:
+            pass # Bỏ qua nếu lỗi
+
+        # Xử lý dữ liệu "mật độ"
+        hourly_data = dict(hourly_density.most_common())
+
+        # Trả về cục JSON "siêu to"
+        return {
+            "group_title": getattr(entity, "title", str(target)),
+            "total_members": total_members,
+            "total_posts": total_posts, # Trả lời câu 1
+            "total_active_users": len(active_users), # Trả lời câu 2 & 3
+            "engagement_rate": (len(active_users) / total_members) * 100 if total_members > 0 else 0,
+            "hourly_data": hourly_data, # Trả lời câu 4
+            "scanned": scanned # Trả về cả số tin đã quét
+        }
+# === KẾT THÚC HÀM MỚI ===
+
 # ====== CÁC ĐIỂM CUỐI API (Giữ nguyên) ======
 @app.get("/")
 def read_root():
@@ -195,7 +274,12 @@ def get_groups_list():
 async def api_rankmem(target: str, start_date: str, end_date: str):
     data = await get_rankmem_data(target, start_date, end_date)
     return data
+@app.get("/api/dashboard")
+async def api_dashboard(target: str, start_date: str, end_date: str):
+    data = await get_dashboard_data(target, start_date, end_date)
+    return data
 @app.get("/api/checkgroup")
 async def api_checkgroup(target: str, start_date: str, end_date: str):
     data = await get_checkgroup_data(target, start_date, end_date)
     return data
+
