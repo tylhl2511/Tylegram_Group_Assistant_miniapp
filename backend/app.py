@@ -16,7 +16,9 @@ TELETHON_SESSION = os.environ.get("TG_SESSION")
 
 GROUP_SOURCES = {
     -1003037580357: "Hẻm Gaming",
-    -1003157457932: "Tổ Đội Gaming"
+    -1003157457932: "Tổ Đội Gaming",
+    -1002903068231: "Check VAR Banh Bóng",
+    -1002445361342: "Kèo là phải thơm"
 }
 # ============================================
 
