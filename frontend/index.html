@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bot Điều Khiển</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
-        /* (CSS giữ nguyên, không thay đổi) */
+        /* (CSS Cũ giữ nguyên, tôi chỉ thêm 1 chút) */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
@@ -20,6 +23,41 @@
             flex-direction: column;
             gap: 15px;
         }
+        /* 🎨 Thêm CSS cho các nút sát nhau */
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .button-group button, .container > button {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--tg-theme-hint-color, #ccc);
+            background-color: var(--tg-theme-secondary-bg-color, #f8f8f8);
+            color: var(--tg-theme-text-color, #000000);
+            box-sizing: border-box;
+            font-size: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+        }
+        select, input[type="text"], input[type="date"] {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--tg-theme-hint-color, #ccc);
+            background-color: var(--tg-theme-secondary-bg-color, #f8f8f8);
+            color: var(--tg-theme-text-color, #000000);
+            box-sizing: border-box;
+            font-size: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        button {
+            background-color: var(--tg-theme-button-color, #007aff);
+            color: var(--tg-theme-button-text-color, #ffffff);
+        }
         .form-group {
             display: flex;
             flex-direction: column;
@@ -29,84 +67,45 @@
             font-weight: 600;
             font-size: 14px;
         }
+        button:disabled { opacity: 0.5; }
+        #result { margin-top: 15px; word-wrap: break-word; }
+        .loading { opacity: 0.7; pointer-events: none; }
+        .report-card { background-color: var(--tg-theme-secondary-bg-color, #f0f0f0); padding: 15px; border-radius: 8px; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .report-header { font-size: 18px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--tg-theme-hint-color, #ccc); color: var(--tg-theme-text-color, #000000); }
+        .report-summary { font-size: 16px; line-height: 1.5; }
+        .user-item { background-color: var(--tg-theme-bg-color, #ffffff); padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-size: 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .user-list-container { margin-top: 15px; border-top: 1px solid var(--tg-theme-hint-color, #ccc); padding-top: 15px; }
+        .user-list-container h4 { margin: 0 0 10px 0; font-size: 15px; font-weight: 600; }
+        .report-footer { margin-top: 15px; font-size: 13px; text-align: center; opacity: 0.7; }
         
-        /* 🎨 Sửa nhỏ cho input[type="date"] để căn lề đẹp hơn */
-        select, input[type="text"], input[type="date"], button {
-            width: 100%;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid var(--tg-theme-hint-color, #ccc);
-            background-color: var(--tg-theme-secondary-bg-color, #f8f8f8);
-            color: var(--tg-theme-text-color, #000000);
-            box-sizing: border-box;
-            font-size: 16px;
-            /* Thêm font-family để ô lịch nhìn giống các ô khác */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        /* 🎨 CSS cho Dashboard */
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
         }
-
-        button {
-            cursor: pointer;
-            background-color: var(--tg-theme-button-color, #007aff);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none;
-            font-weight: 600;
-        }
-        button:disabled {
-            opacity: 0.5;
-        }
-        #result {
-            margin-top: 15px;
-            word-wrap: break-word;
-        }
-        .loading {
-            opacity: 0.7;
-            pointer-events: none;
-        }
-        .report-card {
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+        .stat-item {
+            background: var(--tg-theme-bg-color, #fff);
             padding: 15px;
             border-radius: 8px;
-            animation: fadeIn 0.3s ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .report-header {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--tg-theme-hint-color, #ccc);
-            color: var(--tg-theme-text-color, #000000);
-        }
-        .report-summary {
-            font-size: 16px;
-            line-height: 1.5;
-        }
-        .user-item {
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 6px;
-            font-size: 15px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-        .user-list-container {
-            margin-top: 15px;
-            border-top: 1px solid var(--tg-theme-hint-color, #ccc);
-            padding-top: 15px;
+        .stat-item .label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 5px;
         }
-        .user-list-container h4 {
-            margin: 0 0 10px 0;
-            font-size: 15px;
+        .stat-item .value {
+            font-size: 20px;
             font-weight: 600;
         }
-        .report-footer {
+        .chart-container {
+            position: relative;
+            height: 250px; /* Chiều cao biểu đồ */
+            width: 100%;
             margin-top: 15px;
-            font-size: 13px;
-            text-align: center;
-            opacity: 0.7;
         }
     </style>
 </head>
@@ -130,11 +129,17 @@
             <input type="date" id="end-date">
         </div>
 
-        <button id="btn-rankmem">Quét Top 10</button>
-        <button id="btn-checkgroup">Quét Join/Leave</button>
+        <div class="button-group">
+            <button id="btn-rankmem">Quét Top 10</button>
+            <button id="btn-checkgroup">Quét Join/Leave</button>
+        </div>
+        <button id="btn-dashboard">📈 Mở Dashboard Phân Tích</button>
 
         <div id="result">
+            <div class="chart-container" style="display: none;">
+                <canvas id="hourlyChart"></canvas>
             </div>
+        </div>
     </div>
 
     <script>
@@ -153,65 +158,51 @@
         const endDateInput = document.getElementById('end-date');
         const btnRankmem = document.getElementById('btn-rankmem');
         const btnCheckgroup = document.getElementById('btn-checkgroup');
+        const btnDashboard = document.getElementById('btn-dashboard'); // Nút mới
         const resultDiv = document.getElementById('result');
+        const chartContainer = document.querySelector('.chart-container');
+        
+        // Biến toàn cục để giữ "thể hiện" của biểu đồ
+        let myChart = null;
 
         function showLoading(isLoading) {
             if (isLoading) {
                 resultDiv.innerHTML = `<div class="report-card">Đang quét, vui lòng chờ...</div>`;
+                chartContainer.style.display = 'none'; // Ẩn biểu đồ cũ
             }
             app.classList.toggle('loading', isLoading);
             btnRankmem.disabled = isLoading;
             btnCheckgroup.disabled = isLoading;
+            btnDashboard.disabled = isLoading; // Vô hiệu hóa nút mới
         }
         
-        // ==========================================================
-        // === 🚀 THAY ĐỔI 3: HÀM "XOAY" NGÀY ===
-        // ==========================================================
-        /**
-         * Chuyển đổi ngày từ "YYYY-MM-DD" (của lịch)
-         * sang "DD/MM/YYYY" (cho backend)
-         */
         function formatInputDate(dateString) {
-            if (!dateString) return ""; // Nếu rỗng thì trả về rỗng
-            
-            // dateString có dạng "YYYY-MM-DD"
-            const parts = dateString.split('-'); // Tách ra thành ["YYYY", "MM", "DD"]
-            
-            // Ghép lại theo thứ tự mới
-            return `${parts[2]}/${parts[1]}/${parts[0]}`; // Trả về "DD/MM/YYYY"
+            if (!dateString) return ""; 
+            const parts = dateString.split('-'); 
+            return `${parts[2]}/${parts[1]}/${parts[0]}`; 
         }
 
-        // ==========================================================
-        // === 🚀 THAY ĐỔI 4: DÙNG HÀM "XOAY" NGÀY TRONG getParams ===
-        // ==========================================================
         function getParams() {
-            // 1. Lấy giá trị GỐC (dạng YYYY-MM-DD)
             const rawStartDate = startDateInput.value;
             const rawEndDate = endDateInput.value;
-
-            // 2. CHUYỂN ĐỔI sang định dạng DD/MM/YYYY mà backend cần
             const target = groupSelect.value;
             const startDate = formatInputDate(rawStartDate);
-            const endDate = formatInputDate(rawEndDate) || startDate; // Vẫn giữ logic cũ
+            const endDate = formatInputDate(rawEndDate) || startDate; 
 
             if (!target || !startDate) {
                 tg.showAlert("Vui lòng chọn nhóm và ngày bắt đầu.");
                 return null;
             }
-            
-            // 3. Trả về data đã được "xoay" đúng định dạng
             return { target, startDate, endDate };
         }
 
+        // (Code load group không đổi)
         document.addEventListener('DOMContentLoaded', async () => {
-            // (Không thay đổi gì ở đây)
             try {
                 const response = await fetch(`${BACKEND_URL}/api/groups`);
                 if (!response.ok) throw new Error(`Lỗi HTTP: ${response.status}`);
                 const groups = await response.json();
-                
                 groupSelect.innerHTML = '<option value="">-- Chọn một nhóm --</option>'; 
-                
                 for (const [id, name] of Object.entries(groups)) {
                     const option = document.createElement('option');
                     option.value = id;
@@ -220,28 +211,24 @@
                 }
             } catch (error) {
                 groupSelect.innerHTML = '<option value="">Lỗi khi tải nhóm</option>';
-                resultDiv.innerHTML = `<div class="report-card">Lỗi kết nối Backend: ${error.message}<br>Hãy kiểm tra lại BACKEND_URL trong file index.html.</div>`;
+                resultDiv.innerHTML = `<div class="report-card">Lỗi kết nối Backend: ${error.message}<br>Hãy kiểm tra lại BACKEND_URL.</div>`;
             }
         });
 
+        // (Code nút Rankmem không đổi)
         btnRankmem.addEventListener('click', async () => {
-            // (Không thay đổi gì ở đây)
             const params = getParams();
             if (!params) return;
-
             showLoading(true);
             try {
                 const response = await fetch(`${BACKEND_URL}/api/rankmem?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
                 const data = await response.json();
-
                 if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
-
                 let topListHTML = data.top.length === 0 
                     ? "Không tìm thấy tin nhắn nào." 
                     : data.top.map(user => 
                         `<div class="user-item">${user.rank}. ${user.name} - ${user.messages} tin</div>`
                     ).join('');
-
                 const reportHTML = `
                     <div class="report-card">
                         <div class="report-header">🏆 Top 10 - ${data.group_title}</div>
@@ -251,27 +238,23 @@
                         <div class="report-footer">(Đã quét ${data.scanned} tin)</div>
                     </div>
                 `;
-                
                 resultDiv.innerHTML = reportHTML;
-
+                chartContainer.style.display = 'none'; // Ẩn chart
             } catch (error) {
                 resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
             }
             showLoading(false);
         });
 
+        // (Code nút Checkgroup không đổi)
         btnCheckgroup.addEventListener('click', async () => {
-            // (Không thay đổi gì ở đây)
             const params = getParams();
             if (!params) return;
-
             showLoading(true);
             try {
                 const response = await fetch(`${BACKEND_URL}/api/checkgroup?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
                 const data = await response.json();
-
                 if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
-
                 let reportHTML = `
                     <div class="report-card">
                         <div class="report-header">📊 Báo cáo - ${data.group_title}</div>
@@ -280,7 +263,6 @@
                             <div class="user-item">- ${data.leaves} thành viên rời</div>
                         </div>
                 `;
-                
                 if (data.joins_list && data.joins_list.length > 0) {
                     reportHTML += `
                         <div class="user-list-container">
@@ -289,7 +271,6 @@
                         </div>
                     `;
                 }
-
                 if (data.leaves_list && data.leaves_list.length > 0) {
                     reportHTML += `
                         <div class="user-list-container">
@@ -298,16 +279,126 @@
                         </div>
                     `;
                 }
-
                 reportHTML += `
                         <div class="report-footer">(Đã quét ${data.scanned} tin)</div>
                     </div>
                 `;
+                resultDiv.innerHTML = reportHTML;
+                chartContainer.style.display = 'none'; // Ẩn chart
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
+            }
+            showLoading(false);
+        });
+
+        // ==============================================
+        // === 🚀 THAY ĐỔI 4: CODE CHO NÚT DASHBOARD MỚI ===
+        // ==============================================
+        btnDashboard.addEventListener('click', async () => {
+            const params = getParams();
+            if (!params) return;
+
+            showLoading(true);
+            
+            // Hủy biểu đồ cũ (nếu có) trước khi vẽ cái mới
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            try {
+                // **LƯU Ý: Đảm bảo bạn đã tạo API /api/dashboard trong file Backend nhé!**
+                const response = await fetch(`${BACKEND_URL}/api/dashboard?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
+
+                // 1. Chuẩn bị data cho biểu đồ
+                const hourlyData = data.hourly_data || {};
+                const labels = []; // Các nhãn (0h -> 23h)
+                const chartData = []; // Dữ liệu (số tin)
+                
+                for (let i = 0; i < 24; i++) {
+                    labels.push(`${i}h`);
+                    chartData.push(hourlyData[i] || 0); // Lấy data giờ đó, nếu không có thì 0
+                }
+
+                // 2. Hiển thị các chỉ số (Stats)
+                const reportHTML = `
+                    <div class="report-card">
+                        <div class="report-header">📈 Dashboard - ${data.group_title}</div>
+                        
+                        <div class="dashboard-stats">
+                            <div class="stat-item">
+                                <div class="label">Tổng bài viết</div>
+                                <div class="value">${data.total_posts.toLocaleString('vi-VN')}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">Thành viên HĐ</div>
+                                <div class="value">${data.total_active_users.toLocaleString('vi-VN')}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">Tổng thành viên</div>
+                                <div class="value">${data.total_members.toLocaleString('vi-VN')}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">Tỷ lệ tham gia</div>
+                                <div class="value">${data.engagement_rate.toFixed(2)}%</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
                 
                 resultDiv.innerHTML = reportHTML;
+                chartContainer.style.display = 'block'; // Hiển thị vùng chứa chart
+
+                // 3. Vẽ biểu đồ
+                const ctx = document.getElementById('hourlyChart').getContext('2d');
+                myChart = new Chart(ctx, {
+                    type: 'bar', // Kiểu biểu đồ
+                    data: {
+                        labels: labels, // Nhãn trục X
+                        datasets: [{
+                            label: 'Số tin nhắn',
+                            data: chartData, // Data trục Y
+                            backgroundColor: 'rgba(0, 122, 255, 0.6)', // Màu nền (lấy màu Tele)
+                            borderColor: 'rgba(0, 122, 255, 1)', // Màu viền
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false, // Để nó fill theo chiều cao của container
+                        plugins: {
+                            legend: {
+                                display: false // Ẩn cái label "Số tin nhắn" đi cho gọn
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.dataset.label}: ${context.parsed.y} tin`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    color: 'var(--tg-theme-text-color, #000)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    color: 'var(--tg-theme-text-color, #000)'
+                                }
+                            }
+                        }
+                    }
+                });
 
             } catch (error) {
                 resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
+                chartContainer.style.display = 'none'; // Ẩn chart nếu lỗi
             }
             showLoading(false);
         });
