@@ -298,15 +298,14 @@
             const params = getParams();
             if (!params) return;
 
-            showLoading(true);
+            showLoading(true); // <-- Chỗ này xoá canvas
             
-            // Hủy biểu đồ cũ (nếu có) trước khi vẽ cái mới
+            // Hủy biểu đồ cũ (nếu có)
             if (myChart) {
                 myChart.destroy();
             }
 
             try {
-                // **LƯU Ý: Đảm bảo bạn đã tạo API /api/dashboard trong file Backend nhé!**
                 const response = await fetch(`${BACKEND_URL}/api/dashboard?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
                 const data = await response.json();
 
@@ -314,15 +313,17 @@
 
                 // 1. Chuẩn bị data cho biểu đồ
                 const hourlyData = data.hourly_data || {};
-                const labels = []; // Các nhãn (0h -> 23h)
-                const chartData = []; // Dữ liệu (số tin)
+                const labels = [];
+                const chartData = [];
                 
                 for (let i = 0; i < 24; i++) {
                     labels.push(`${i}h`);
-                    chartData.push(hourlyData[i] || 0); // Lấy data giờ đó, nếu không có thì 0
+                    chartData.push(hourlyData[i] || 0); 
                 }
 
                 // 2. Hiển thị các chỉ số (Stats)
+                // **ĐÂY LÀ PHẦN SỬA QUAN TRỌNG NHẤT**
+                // reportHTML này sẽ TẠO LẠI cái canvas đã mất
                 const reportHTML = `
                     <div class="report-card">
                         <div class="report-header">📈 Dashboard - ${data.group_title}</div>
@@ -346,31 +347,35 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="chart-container" style="display: block;">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
                 `;
                 
+                // Gán HTML mới (Lúc này 'hourlyChart' đã tồn tại)
                 resultDiv.innerHTML = reportHTML;
-                chartContainer.style.display = 'block'; // Hiển thị vùng chứa chart
-
-                // 3. Vẽ biểu đồ
+                
+                // 3. Vẽ biểu đồ (Giờ nó sẽ tìm thấy 'hourlyChart' vì nó ở ngay trên)
                 const ctx = document.getElementById('hourlyChart').getContext('2d');
                 myChart = new Chart(ctx, {
-                    type: 'bar', // Kiểu biểu đồ
+                    type: 'bar',
                     data: {
-                        labels: labels, // Nhãn trục X
+                        labels: labels, 
                         datasets: [{
                             label: 'Số tin nhắn',
-                            data: chartData, // Data trục Y
-                            backgroundColor: 'rgba(0, 122, 255, 0.6)', // Màu nền (lấy màu Tele)
-                            borderColor: 'rgba(0, 122, 255, 1)', // Màu viền
+                            data: chartData,
+                            backgroundColor: 'rgba(0, 122, 255, 0.6)',
+                            borderColor: 'rgba(0, 122, 255, 1)',
                             borderWidth: 1
                         }]
                     },
                     options: {
                         responsive: true,
-                        maintainAspectRatio: false, // Để nó fill theo chiều cao của container
+                        maintainAspectRatio: false,
                         plugins: {
                             legend: {
-                                display: false // Ẩn cái label "Số tin nhắn" đi cho gọn
+                                display: false
                             },
                             tooltip: {
                                 callbacks: {
@@ -398,7 +403,7 @@
 
             } catch (error) {
                 resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
-                chartContainer.style.display = 'none'; // Ẩn chart nếu lỗi
+                // Không cần ẩn chart-container vì nó đã bị xóa bởi showLoading
             }
             showLoading(false);
         });
