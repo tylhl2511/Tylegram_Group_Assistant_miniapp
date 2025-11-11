@@ -6,7 +6,7 @@
     <title>Bot Điều Khiển</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* (CSS giữ nguyên, không thay đổi) */
+        /* (CSS GỐC CỦA BẠN - GIỮ NGUYÊN) */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
@@ -49,17 +49,80 @@
         button:disabled {
             opacity: 0.5;
         }
+        
+        /* (CSS CŨ CHO #result - ĐÃ SỬA LẠI) */
         #result {
             margin-top: 15px;
-            padding: 10px;
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            border-radius: 8px;
-            white-space: pre-wrap;
             word-wrap: break-word;
+            /* Bỏ nền và padding cũ, vì "card" mới sẽ lo việc này */
         }
+        
         .loading {
             opacity: 0.7;
             pointer-events: none;
+        }
+        
+        /* ================================== */
+        /* === 🎨 CSS MỚI CHO GIAO DIỆN === */
+        /* ================================== */
+        
+        /* Thẻ chứa kết quả */
+        .report-card {
+            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            padding: 15px;
+            border-radius: 8px;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Tiêu đề của thẻ (Tên nhóm) */
+        .report-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--tg-theme-hint-color, #ccc);
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        /* Tóm tắt (Tổng join/leave hoặc Top 10) */
+        .report-summary {
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        /* Dùng cho các mục trong danh sách */
+        .user-item {
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 15px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        /* Vùng chứa danh sách (Join/Leave) */
+        .user-list-container {
+            margin-top: 15px;
+            border-top: 1px solid var(--tg-theme-hint-color, #ccc);
+            padding-top: 15px;
+        }
+        .user-list-container h4 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        /* Chân của thẻ (Đã quét...) */
+        .report-footer {
+            margin-top: 15px;
+            font-size: 13px;
+            text-align: center;
+            opacity: 0.7;
         }
     </style>
 </head>
@@ -87,14 +150,12 @@
         <button id="btn-checkgroup">Quét Join/Leave</button>
 
         <div id="result">
-            Kết quả sẽ hiện ở đây...
-        </div>
+            </div>
     </div>
 
     <script>
         // ==========================================================
         // SỬA URL NÀY BẰNG LINK RENDER CỦA BẠN
-        // (Bạn phải chắc chắn link này ĐÚNG)
         // ==========================================================
         const BACKEND_URL = "https://tele-miniapp-backend.onrender.com";
         // ==========================================================
@@ -110,27 +171,23 @@
         const btnCheckgroup = document.getElementById('btn-checkgroup');
         const resultDiv = document.getElementById('result');
 
-        // ========= ĐÃ SỬA LỖI TRONG HÀM NÀY =========
         function showLoading(isLoading) {
-            // Chỉ hiển thị chữ "Đang quét..." khi bắt đầu
             if (isLoading) {
-                resultDiv.textContent = "Đang quét, vui lòng chờ...";
+                // Hiển thị loading nhẹ nhàng hơn
+                resultDiv.innerHTML = `<div class="report-card">Đang quét, vui lòng chờ...</div>`;
             }
-            // Chỉ vô hiệu hóa nút
             app.classList.toggle('loading', isLoading);
             btnRankmem.disabled = isLoading;
             btnCheckgroup.disabled = isLoading;
-            // (Đã xóa dòng code gây lỗi)
         }
-        // ===========================================
-
+        
         function getParams() {
             const target = groupSelect.value;
             const startDate = startDateInput.value;
             const endDate = endDateInput.value || startDate;
 
             if (!target || !startDate) {
-                alert("Vui lòng chọn nhóm và ngày bắt đầu.");
+                tg.showAlert("Vui lòng chọn nhóm và ngày bắt đầu."); // Dùng thông báo gốc của Tele
                 return null;
             }
             return { target, startDate, endDate };
@@ -152,10 +209,11 @@
                 }
             } catch (error) {
                 groupSelect.innerHTML = '<option value="">Lỗi khi tải nhóm</option>';
-                resultDiv.textContent = `Lỗi kết nối Backend: ${error.message}\nHãy kiểm tra lại BACKEND_URL trong file index.html.`;
+                resultDiv.innerHTML = `<div class="report-card">Lỗi kết nối Backend: ${error.message}<br>Hãy kiểm tra lại BACKEND_URL trong file index.html.</div>`;
             }
         });
 
+        // === 🚀 NÚT QUÉT TOP 10 (Đã nâng cấp giao diện) ===
         btnRankmem.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
@@ -167,24 +225,33 @@
 
                 if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
 
-                let report = `🏆 Top 10 - ${data.group_title}\n`;
-                if (data.top.length === 0) {
-                    report += "Không tìm thấy tin nhắn nào.";
-                } else {
-                    data.top.forEach(user => {
-                        report += `\n${user.rank}. ${user.name} - ${user.messages} tin`;
-                    });
-                }
-                report += `\n\n(Đã quét ${data.scanned} tin)`;
+                // Dùng .map() để biến mảng data.top thành HTML
+                let topListHTML = data.top.length === 0 
+                    ? "Không tìm thấy tin nhắn nào." 
+                    : data.top.map(user => 
+                        `<div class="user-item">${user.rank}. ${user.name} - ${user.messages} tin</div>`
+                    ).join('');
+
+                // Tạo card kết quả bằng HTML
+                const reportHTML = `
+                    <div class="report-card">
+                        <div class="report-header">🏆 Top 10 - ${data.group_title}</div>
+                        <div class="report-summary">
+                            ${topListHTML}
+                        </div>
+                        <div class="report-footer">(Đã quét ${data.scanned} tin)</div>
+                    </div>
+                `;
                 
-                resultDiv.textContent = report; // <-- Gán kết quả
+                resultDiv.innerHTML = reportHTML;
 
             } catch (error) {
-                resultDiv.textContent = `Lỗi: ${error.message}`;
+                resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
             }
-            showLoading(false); // <-- Chỉ tắt loading (không xóa kết quả nữa)
+            showLoading(false);
         });
 
+        // === 🚀 NÚT QUÉT JOIN/LEAVE (Đã nâng cấp VÀ SỬA LỖI) ===
         btnCheckgroup.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
@@ -196,17 +263,50 @@
 
                 if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
 
-                let report = `📊 Báo cáo - ${data.group_title}\n`;
-                report += `\n+ ${data.joins} thành viên join`;
-                report += `\n- ${data.leaves} thành viên rời`;
-                report += `\n\n(Đã quét ${data.scanned} tin)`;
+                // 1. Tạo phần Tóm tắt
+                let reportHTML = `
+                    <div class="report-card">
+                        <div class="report-header">📊 Báo cáo - ${data.group_title}</div>
+                        <div class="report-summary">
+                            <div class="user-item">+ ${data.joins} thành viên join</div>
+                            <div class="user-item">- ${data.leaves} thành viên rời</div>
+                        </div>
+                `;
                 
-                resultDiv.textContent = report; // <-- Gán kết quả
+                // 2. === PHẦN SỬA LỖI ===
+                // Kiểm tra và hiển thị DANH SÁCH JOIN
+                if (data.joins_list && data.joins_list.length > 0) {
+                    reportHTML += `
+                        <div class="user-list-container">
+                            <h4>Danh sách Join:</h4>
+                            ${data.joins_list.map(name => `<div class="user-item">${name}</div>`).join('')}
+                        </div>
+                    `;
+                }
+
+                // Kiểm tra và hiển thị DANH SÁCH LEAVE
+                if (data.leaves_list && data.leaves_list.length > 0) {
+                    reportHTML += `
+                        <div class="user-list-container">
+                            <h4>Danh sách Rời:</h4>
+                            ${data.leaves_list.map(name => `<div class="user-item">${name}</div>`).join('')}
+                        </div>
+                    `;
+                }
+                // === KẾT THÚC PHẦN SỬA LỖI ===
+
+                // 3. Thêm chân và đóng thẻ
+                reportHTML += `
+                        <div class="report-footer">(Đã quét ${data.scanned} tin)</div>
+                    </div>
+                `;
+                
+                resultDiv.innerHTML = reportHTML;
 
             } catch (error) {
-                resultDiv.textContent = `Lỗi: ${error.message}`;
+                resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
             }
-            showLoading(false); // <-- Chỉ tắt loading (không xóa kết quả nữa)
+            showLoading(false);
         });
 
     </script>
