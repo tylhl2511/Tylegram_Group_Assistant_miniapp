@@ -6,7 +6,7 @@
     <title>Bot Điều Khiển</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* (CSS GỐC CỦA BẠN - GIỮ NGUYÊN) */
+        /* (CSS giữ nguyên, không thay đổi) */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
@@ -29,7 +29,9 @@
             font-weight: 600;
             font-size: 14px;
         }
-        select, input, button {
+        
+        /* 🎨 Sửa nhỏ cho input[type="date"] để căn lề đẹp hơn */
+        select, input[type="text"], input[type="date"], button {
             width: 100%;
             padding: 10px;
             border-radius: 8px;
@@ -38,7 +40,10 @@
             color: var(--tg-theme-text-color, #000000);
             box-sizing: border-box;
             font-size: 16px;
+            /* Thêm font-family để ô lịch nhìn giống các ô khác */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
+
         button {
             cursor: pointer;
             background-color: var(--tg-theme-button-color, #007aff);
@@ -49,37 +54,24 @@
         button:disabled {
             opacity: 0.5;
         }
-        
-        /* (CSS CŨ CHO #result - ĐÃ SỬA LẠI) */
         #result {
             margin-top: 15px;
             word-wrap: break-word;
-            /* Bỏ nền và padding cũ, vì "card" mới sẽ lo việc này */
         }
-        
         .loading {
             opacity: 0.7;
             pointer-events: none;
         }
-        
-        /* ================================== */
-        /* === 🎨 CSS MỚI CHO GIAO DIỆN === */
-        /* ================================== */
-        
-        /* Thẻ chứa kết quả */
         .report-card {
             background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
             padding: 15px;
             border-radius: 8px;
             animation: fadeIn 0.3s ease-out;
         }
-        
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-
-        /* Tiêu đề của thẻ (Tên nhóm) */
         .report-header {
             font-size: 18px;
             font-weight: 600;
@@ -88,14 +80,10 @@
             border-bottom: 1px solid var(--tg-theme-hint-color, #ccc);
             color: var(--tg-theme-text-color, #000000);
         }
-
-        /* Tóm tắt (Tổng join/leave hoặc Top 10) */
         .report-summary {
             font-size: 16px;
             line-height: 1.5;
         }
-
-        /* Dùng cho các mục trong danh sách */
         .user-item {
             background-color: var(--tg-theme-bg-color, #ffffff);
             padding: 8px 12px;
@@ -104,8 +92,6 @@
             font-size: 15px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-
-        /* Vùng chứa danh sách (Join/Leave) */
         .user-list-container {
             margin-top: 15px;
             border-top: 1px solid var(--tg-theme-hint-color, #ccc);
@@ -116,8 +102,6 @@
             font-size: 15px;
             font-weight: 600;
         }
-
-        /* Chân của thẻ (Đã quét...) */
         .report-footer {
             margin-top: 15px;
             font-size: 13px;
@@ -137,13 +121,13 @@
         </div>
 
         <div class="form-group">
-            <label for="start-date">Ngày bắt đầu (DD/MM/YYYY):</label>
-            <input type="text" id="start-date" placeholder="ví dụ: 01/11/2025">
+            <label for="start-date">Ngày bắt đầu:</label>
+            <input type="date" id="start-date">
         </div>
 
         <div class="form-group">
             <label for="end-date">Ngày kết thúc (bỏ trống = 1 ngày):</label>
-            <input type="text" id="end-date" placeholder="ví dụ: 05/11/2025">
+            <input type="date" id="end-date">
         </div>
 
         <button id="btn-rankmem">Quét Top 10</button>
@@ -173,7 +157,6 @@
 
         function showLoading(isLoading) {
             if (isLoading) {
-                // Hiển thị loading nhẹ nhàng hơn
                 resultDiv.innerHTML = `<div class="report-card">Đang quét, vui lòng chờ...</div>`;
             }
             app.classList.toggle('loading', isLoading);
@@ -181,19 +164,47 @@
             btnCheckgroup.disabled = isLoading;
         }
         
+        // ==========================================================
+        // === 🚀 THAY ĐỔI 3: HÀM "XOAY" NGÀY ===
+        // ==========================================================
+        /**
+         * Chuyển đổi ngày từ "YYYY-MM-DD" (của lịch)
+         * sang "DD/MM/YYYY" (cho backend)
+         */
+        function formatInputDate(dateString) {
+            if (!dateString) return ""; // Nếu rỗng thì trả về rỗng
+            
+            // dateString có dạng "YYYY-MM-DD"
+            const parts = dateString.split('-'); // Tách ra thành ["YYYY", "MM", "DD"]
+            
+            // Ghép lại theo thứ tự mới
+            return `${parts[2]}/${parts[1]}/${parts[0]}`; // Trả về "DD/MM/YYYY"
+        }
+
+        // ==========================================================
+        // === 🚀 THAY ĐỔI 4: DÙNG HÀM "XOAY" NGÀY TRONG getParams ===
+        // ==========================================================
         function getParams() {
+            // 1. Lấy giá trị GỐC (dạng YYYY-MM-DD)
+            const rawStartDate = startDateInput.value;
+            const rawEndDate = endDateInput.value;
+
+            // 2. CHUYỂN ĐỔI sang định dạng DD/MM/YYYY mà backend cần
             const target = groupSelect.value;
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value || startDate;
+            const startDate = formatInputDate(rawStartDate);
+            const endDate = formatInputDate(rawEndDate) || startDate; // Vẫn giữ logic cũ
 
             if (!target || !startDate) {
-                tg.showAlert("Vui lòng chọn nhóm và ngày bắt đầu."); // Dùng thông báo gốc của Tele
+                tg.showAlert("Vui lòng chọn nhóm và ngày bắt đầu.");
                 return null;
             }
+            
+            // 3. Trả về data đã được "xoay" đúng định dạng
             return { target, startDate, endDate };
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
+            // (Không thay đổi gì ở đây)
             try {
                 const response = await fetch(`${BACKEND_URL}/api/groups`);
                 if (!response.ok) throw new Error(`Lỗi HTTP: ${response.status}`);
@@ -213,8 +224,8 @@
             }
         });
 
-        // === 🚀 NÚT QUÉT TOP 10 (Đã nâng cấp giao diện) ===
         btnRankmem.addEventListener('click', async () => {
+            // (Không thay đổi gì ở đây)
             const params = getParams();
             if (!params) return;
 
@@ -225,14 +236,12 @@
 
                 if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
 
-                // Dùng .map() để biến mảng data.top thành HTML
                 let topListHTML = data.top.length === 0 
                     ? "Không tìm thấy tin nhắn nào." 
                     : data.top.map(user => 
                         `<div class="user-item">${user.rank}. ${user.name} - ${user.messages} tin</div>`
                     ).join('');
 
-                // Tạo card kết quả bằng HTML
                 const reportHTML = `
                     <div class="report-card">
                         <div class="report-header">🏆 Top 10 - ${data.group_title}</div>
@@ -251,8 +260,8 @@
             showLoading(false);
         });
 
-        // === 🚀 NÚT QUÉT JOIN/LEAVE (Đã nâng cấp VÀ SỬA LỖI) ===
         btnCheckgroup.addEventListener('click', async () => {
+            // (Không thay đổi gì ở đây)
             const params = getParams();
             if (!params) return;
 
@@ -263,7 +272,6 @@
 
                 if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
 
-                // 1. Tạo phần Tóm tắt
                 let reportHTML = `
                     <div class="report-card">
                         <div class="report-header">📊 Báo cáo - ${data.group_title}</div>
@@ -273,8 +281,6 @@
                         </div>
                 `;
                 
-                // 2. === PHẦN SỬA LỖI ===
-                // Kiểm tra và hiển thị DANH SÁCH JOIN
                 if (data.joins_list && data.joins_list.length > 0) {
                     reportHTML += `
                         <div class="user-list-container">
@@ -284,7 +290,6 @@
                     `;
                 }
 
-                // Kiểm tra và hiển thị DANH SÁCH LEAVE
                 if (data.leaves_list && data.leaves_list.length > 0) {
                     reportHTML += `
                         <div class="user-list-container">
@@ -293,9 +298,7 @@
                         </div>
                     `;
                 }
-                // === KẾT THÚC PHẦN SỬA LỖI ===
 
-                // 3. Thêm chân và đóng thẻ
                 reportHTML += `
                         <div class="report-footer">(Đã quét ${data.scanned} tin)</div>
                     </div>
