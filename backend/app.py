@@ -174,12 +174,13 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
         # === KẾT THÚC PHẦN LẤY USERNAME ===
 
         # === TRẢ VỀ DỮ LIỆU DẠNG DANH SÁCH (JSON ARRAY) ===
+        # === SỬA LẠI RETURN ĐỂ "KHỚP" VỚI FRONTEND CŨ ===
         return {
             "scanned": scanned,
-            "joins_count": len(join_names),      
-            "leaves_count": len(leave_names),   
-            "joins_list": join_names,           # Đây là cái bạn cần (VD: ["@user1", "@user2"])
-            "leaves_list": leave_names,          # Đây là cái bạn cần (VD: ["@user3", "@user4"])
+            "joins": len(join_names),      # ĐỔI TÊN LẠI thành "joins"
+            "leaves": len(leave_names),    # ĐỔI TÊN LẠI thành "leaves"
+            "joins_list": join_names,      # (Frontend của bạn sẽ dùng cái này sau)
+            "leaves_list": leave_names,     # (Frontend của bạn sẽ dùng cái này sau)
             "group_title": getattr(entity, "title", str(target))
         }
 
