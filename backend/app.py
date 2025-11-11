@@ -122,14 +122,17 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
         _, end_utc = parse_vn_date(date_str_end)
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ. Định dạng DD/MM/YYYY")
+    
     async with tele_client:
         try:
             entity = await resolve_chat_entity(target)
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm {target}: {e}")
+
         joins, leaves = [], []
         scanned = 0
         LIMIT = 50000
+
         try:
             async for msg in tele_client.iter_messages(entity, limit=LIMIT, offset_date=end_utc):
                 scanned += 1
@@ -145,10 +148,38 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
                         leaves.append(getattr(action, "user_id", None))
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Lỗi khi quét tin nhắn: {e}")
+
+        # === PHẦN LẤY USERNAME ===
+        join_names, leave_names = [], []
+
+        # Lấy tên người join
+        for uid in set(joins):
+            if uid:
+                try:
+                    u = await tele_client.get_entity(uid)
+                    name = await human_name_for_user(u)
+                    join_names.append(name) # Trả về tên "sạch"
+                except: 
+                    join_names.append(f"id:{uid}")
+
+        # Lấy tên người leave
+        for uid in set(leaves):
+            if uid:
+                try:
+                    u = await tele_client.get_entity(uid)
+                    name = await human_name_for_user(u)
+                    leave_names.append(name) # Trả về tên "sạch"
+                except: 
+                    leave_names.append(f"id:{uid}")
+        # === KẾT THÚC PHẦN LẤY USERNAME ===
+
+        # === TRẢ VỀ DỮ LIỆU DẠNG DANH SÁCH (JSON ARRAY) ===
         return {
             "scanned": scanned,
-            "joins": len(set(joins)),
-            "leaves": len(set(leaves)),
+            "joins_count": len(join_names),      
+            "leaves_count": len(leave_names),   
+            "joins_list": join_names,           # Đây là cái bạn cần (VD: ["@user1", "@user2"])
+            "leaves_list": leave_names,          # Đây là cái bạn cần (VD: ["@user3", "@user4"])
             "group_title": getattr(entity, "title", str(target))
         }
 
