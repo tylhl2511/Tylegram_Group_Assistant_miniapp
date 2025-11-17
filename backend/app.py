@@ -14,6 +14,7 @@ from telethon.tl.types import (
 )
 # ==============================
 from telethon.sessions import StringSession
+from contextlib import asynccontextmanager # <-- THÊM IMPORT NÀY
 
 # ====== CẤU HÌNH (ĐÃ SỬA LẠI CHO PRODUCTION) ======
 API_ID_STR = os.environ.get("TG_API_ID")
@@ -43,8 +44,37 @@ GROUP_SOURCES = {
 }
 # ============================================
 
-# Khởi tạo API
-app = FastAPI()
+# Khai báo tele_client ở đây nhưng chưa khởi tạo
+tele_client = None
+
+# === THÊM LIFESPAN ĐỂ QUẢN LÝ KẾT NỐI ===
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global tele_client
+    print("Ứng dụng đang khởi động...")
+    # Khởi tạo Client
+    tele_client = TelegramClient(StringSession(TELETHON_SESSION), API_ID, API_HASH)
+    print("Đang kết nối đến Telegram...")
+    
+    try:
+        await tele_client.connect()
+        if not await tele_client.is_user_authorized():
+            print("LỖI: Session không hợp lệ hoặc đã hết hạn!")
+        else:
+            print("Đã kết nối Telegram thành công!")
+    except Exception as e:
+        print(f"LỖI không thể kết nối Telegram: {e}")
+
+    yield # Đây là lúc ứng dụng chạy
+
+    print("Ứng dụng đang tắt...")
+    if tele_client and tele_client.is_connected():
+        await tele_client.disconnect()
+    print("Đã ngắt kết nối Telegram.")
+# ==========================================
+
+# Khởi tạo API và gán lifespan
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -53,8 +83,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Khởi tạo Client
-tele_client = TelegramClient(StringSession(TELETHON_SESSION), API_ID, API_HASH)
+# === XÓA DÒNG KHỞI TẠO CLIENT CŨ Ở ĐÂY ===
+# (Đã chuyển vào lifespan)
+# tele_client = TelegramClient(StringSession(TELETHON_SESSION), API_ID, API_HASH) 
 
 # ====== CÁC HÀM UTILS ======
 def parse_vn_date(s: str) -> datetime.datetime:
@@ -99,9 +130,13 @@ async def get_rankmem_data(target, date_str_start, date_str_end):
         _, end_utc = parse_vn_date(date_str_end)
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
-    async with tele_client:
-        try:
-            entity = await resolve_chat_entity(target)
+    
+    # Bỏ 'async with tele_client:' vì lifespan đã quản lý
+    if not tele_client or not tele_client.is_connected():
+        raise HTTPException(status_code=503, detail="Lỗi: Telegram client chưa sẵn sàng.")
+
+    try:
+        entity = await resolve_chat_entity(target)
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm: {e}")
         counter = Counter()
@@ -116,9 +151,9 @@ async def get_rankmem_data(target, date_str_start, date_str_end):
                 if hasattr(msg, "action") and msg.action is not None: continue
                 uid = getattr(msg, "sender_id", None)
                 if uid: counter[uid] += 1
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Lỗi quét tin: {e}")
-        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi quét tin: {e}")
+    
         results = []
         for i, (uid, cnt) in enumerate(counter.most_common(10), start=1):
             try:
@@ -136,9 +171,12 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
     
-    async with tele_client:
-        try:
-            entity = await resolve_chat_entity(target)
+    # Bỏ 'async with tele_client:' vì lifespan đã quản lý
+    if not tele_client or not tele_client.is_connected():
+        raise HTTPException(status_code=503, detail="Lỗi: Telegram client chưa sẵn sàng.")
+
+    try:
+        entity = await resolve_chat_entity(target)
         except Exception:
             raise HTTPException(status_code=404, detail="Không tìm thấy nhóm.")
 
@@ -181,9 +219,7 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
             "joins": len(join_names),
             "leaves": len(leave_names),
             "joins_list": join_names,
-            "leaves_list": leave_names,
-            "group_title": getattr(entity, "title", str(target))
-        }
+    return {"scanned": scanned, "joins": len(join_names), "leaves": len(leave_names), "joins_list": join_names, "leaves_list": leave_names, "group_title": getattr(entity, "title", str(target))}
 
 # ====== 2. HÀM QUÉT GROUP ẨN (SỬA LỖI LẤY TÊN) ======
 async def get_hidden_group_data(target, date_str_start, date_str_end):
@@ -193,9 +229,12 @@ async def get_hidden_group_data(target, date_str_start, date_str_end):
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
 
-    async with tele_client:
-        try:
-            entity = await resolve_chat_entity(target)
+    # Bỏ 'async with tele_client:' vì lifespan đã quản lý
+    if not tele_client or not tele_client.is_connected():
+        raise HTTPException(status_code=503, detail="Lỗi: Telegram client chưa sẵn sàng.")
+
+    try:
+        entity = await resolve_chat_entity(target)
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm: {e}")
 
@@ -266,7 +305,7 @@ async def get_hidden_group_data(target, date_str_start, date_str_end):
             "leaves": len(leave_names),
             "joins_list": join_names,
             "leaves_list": leave_names
-        }
+    return {"group_title": getattr(entity, "title", str(target)) + " (Admin Log)", "scanned": scanned_events, "joins": len(join_names), "leaves": len(leave_names), "joins_list": join_names, "leaves_list": leave_names}
 
 # ====== 3. DASHBOARD (Giữ nguyên) ======
 async def get_dashboard_data(target, date_str_start, date_str_end):
@@ -281,9 +320,12 @@ async def get_dashboard_data(target, date_str_start, date_str_end):
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày lỗi.")
 
-    async with tele_client:
-        try:
-            entity = await resolve_chat_entity(target)
+    # Bỏ 'async with tele_client:' vì lifespan đã quản lý
+    if not tele_client or not tele_client.is_connected():
+        raise HTTPException(status_code=503, detail="Lỗi: Telegram client chưa sẵn sàng.")
+
+    try:
+        entity = await resolve_chat_entity(target)
         except:
             raise HTTPException(status_code=404, detail="Không tìm thấy nhóm.")
 
