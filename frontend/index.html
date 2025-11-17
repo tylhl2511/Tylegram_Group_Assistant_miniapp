@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        /* (CSS Cũ giữ nguyên) */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
@@ -23,15 +22,20 @@
             width: 100%;
             padding: 10px;
             border-radius: 8px;
-            border: 1px solid var(--tg-theme-hint-color, #ccc);
-            background-color: var(--tg-theme-secondary-bg-color, #f8f8f8);
-            color: var(--tg-theme-text-color, #000000);
-            box-sizing: border-box;
-            font-size: 16px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            cursor: pointer;
             border: none;
+            font-size: 15px;
             font-weight: 600;
+            cursor: pointer;
+        }
+        /* Nút mặc định */
+        button {
+            background-color: var(--tg-theme-button-color, #007aff);
+            color: var(--tg-theme-button-text-color, #ffffff);
+        }
+        /* Nút đặc biệt cho Group ẩn */
+        .btn-admin-log {
+            background-color: #ff9500 !important; /* Màu cam */
+            color: white !important;
         }
         select, input[type="text"], input[type="date"] {
             width: 100%;
@@ -42,11 +46,6 @@
             color: var(--tg-theme-text-color, #000000);
             box-sizing: border-box;
             font-size: 16px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        button {
-            background-color: var(--tg-theme-button-color, #007aff);
-            color: var(--tg-theme-button-text-color, #ffffff);
         }
         .form-group { display: flex; flex-direction: column; gap: 8px; }
         label { font-weight: 600; font-size: 14px; }
@@ -55,46 +54,19 @@
         .loading { opacity: 0.7; pointer-events: none; }
         .report-card { background-color: var(--tg-theme-secondary-bg-color, #f0f0f0); padding: 15px; border-radius: 8px; animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .report-header { font-size: 18px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--tg-theme-hint-color, #ccc); color: var(--tg-theme-text-color, #000000); }
+        .report-header { font-size: 18px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ccc; }
         .report-summary { font-size: 16px; line-height: 1.5; }
-        .user-item { background-color: var(--tg-theme-bg-color, #ffffff); padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-size: 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .user-list-container { margin-top: 15px; border-top: 1px solid var(--tg-theme-hint-color, #ccc); padding-top: 15px; }
+        .user-item { background-color: var(--tg-theme-bg-color, #ffffff); padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .user-list-container { margin-top: 15px; border-top: 1px solid #ccc; padding-top: 15px; }
         .user-list-container h4 { margin: 0 0 10px 0; font-size: 15px; font-weight: 600; }
         .report-footer { margin-top: 15px; font-size: 13px; text-align: center; opacity: 0.7; }
         
-        /* ============================================== */
-        /* === 🚀 THAY ĐỔI 1: CSS SANG 3 CỘT (3 Ô) === */
-        /* ============================================== */
-        .dashboard-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr; /* 3 cột bằng nhau */
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .stat-item {
-            background: var(--tg-theme-bg-color, #fff);
-            padding: 12px; /* Giảm padding 1 chút cho vừa */
-            border-radius: 8px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            text-align: center; /* Vibe 3 ô thì nên center */
-        }
-        .stat-item .label {
-            font-size: 13px; /* Cho chữ nhỏ lại 1 xíu */
-            opacity: 0.8;
-            margin-bottom: 5px;
-        }
-        .stat-item .value {
-            font-size: 18px; /* Chữ nhỏ lại 1 xíu */
-            font-weight: 600;
-        }
-        /* ============================================== */
-
-        .chart-container {
-            position: relative;
-            height: 250px;
-            width: 100%;
-            margin-top: 15px;
-        }
+        /* Dashboard Stats */
+        .dashboard-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-item { background: var(--tg-theme-bg-color, #fff); padding: 12px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); text-align: center; }
+        .stat-item .label { font-size: 12px; opacity: 0.8; margin-bottom: 5px; }
+        .stat-item .value { font-size: 16px; font-weight: 600; }
+        .chart-container { position: relative; height: 250px; width: 100%; margin-top: 15px; display: none; }
     </style>
 </head>
 <body>
@@ -102,9 +74,7 @@
     <div class="container" id="app">
         <div class="form-group">
             <label for="group-select">Chọn nhóm:</label>
-            <select id="group-select">
-                <option value="">Đang tải danh sách nhóm...</option>
-            </select>
+            <select id="group-select"><option value="">Đang tải danh sách...</option></select>
         </div>
 
         <div class="form-group">
@@ -118,24 +88,25 @@
         </div>
 
         <div class="button-group">
-            <button id="btn-rankmem">Quét Top 10</button>
-            <button id="btn-checkgroup">Quét Join/Leave</button>
+            <button id="btn-rankmem">🏆 Top Tương Tác</button>
+            <button id="btn-checkgroup">📢 Quét Tin Nhắn (Thường)</button>
         </div>
-        <button id="btn-dashboard">📈 Mở Dashboard Phân Tích</button>
+        
+        <button id="btn-checkhidden" class="btn-admin-log">🕵️ Quét Group Ẩn (Admin Log)</button>
+        
+        <button id="btn-dashboard">📈 Dashboard Phân Tích</button>
 
-        <div id="result">
-            <div class="chart-container" style="display: none;">
-                <canvas id="hourlyChart"></canvas>
-            </div>
+        <div id="result"></div>
+        
+        <div class="chart-container">
+            <canvas id="hourlyChart"></canvas>
         </div>
     </div>
 
     <script>
-        // ==========================================================
-        // SỬA URL NÀY BẰNG LINK RENDER CỦA BẠN
-        // ==========================================================
-        const BACKEND_URL = "https://tele-miniapp-backend.onrender.com";
-        // ==========================================================
+        // === CẤU HÌNH URL ===
+        const BACKEND_URL = "https://tele-miniapp-backend.onrender.com"; 
+        // ====================
 
         const tg = window.Telegram.WebApp;
         tg.ready();
@@ -146,26 +117,22 @@
         const endDateInput = document.getElementById('end-date');
         const btnRankmem = document.getElementById('btn-rankmem');
         const btnCheckgroup = document.getElementById('btn-checkgroup');
+        const btnCheckHidden = document.getElementById('btn-checkhidden'); // Nút mới
         const btnDashboard = document.getElementById('btn-dashboard');
         const resultDiv = document.getElementById('result');
         const chartContainer = document.querySelector('.chart-container');
-        
         let myChart = null;
 
-        // (Hàm showLoading, formatInputDate, getParams, DOMContentLoaded không đổi)
         function showLoading(isLoading) {
             if (isLoading) {
-                resultDiv.innerHTML = `<div class="report-card">Đang quét, vui lòng chờ...</div>`;
-                // Sửa nhỏ: Phải lấy 'chartContainer' bằng ID mới chuẩn
-                const chartEl = document.getElementById('hourlyChart');
-                if (chartEl) {
-                    chartEl.parentElement.style.display = 'none';
-                }
+                resultDiv.innerHTML = `<div class="report-card">Đang quét dữ liệu, vui lòng chờ...</div>`;
+                chartContainer.style.display = 'none';
             }
             app.classList.toggle('loading', isLoading);
             btnRankmem.disabled = isLoading;
             btnCheckgroup.disabled = isLoading;
             btnDashboard.disabled = isLoading;
+            if (btnCheckHidden) btnCheckHidden.disabled = isLoading;
         }
         
         function formatInputDate(dateString) {
@@ -188,12 +155,13 @@
             return { target, startDate, endDate };
         }
 
+        // Load danh sách nhóm
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const response = await fetch(`${BACKEND_URL}/api/groups`);
-                if (!response.ok) throw new Error(`Lỗi HTTP: ${response.status}`);
+                if (!response.ok) throw new Error("Lỗi tải nhóm");
                 const groups = await response.json();
-                groupSelect.innerHTML = '<option value="">-- Chọn một nhóm --</option>'; 
+                groupSelect.innerHTML = '<option value="">-- Chọn nhóm --</option>'; 
                 for (const [id, name] of Object.entries(groups)) {
                     const option = document.createElement('option');
                     option.value = id;
@@ -201,197 +169,143 @@
                     groupSelect.appendChild(option);
                 }
             } catch (error) {
-                groupSelect.innerHTML = '<option value="">Lỗi khi tải nhóm</option>';
-                resultDiv.innerHTML = `<div class="report-card">Lỗi kết nối Backend: ${error.message}<br>Hãy kiểm tra lại BACKEND_URL.</div>`;
+                groupSelect.innerHTML = '<option value="">Lỗi kết nối Backend</option>';
             }
         });
 
-        // (Hàm btnRankmem và btnCheckgroup không đổi)
+        // 1. Sự kiện: Quét Top Mem
         btnRankmem.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
             showLoading(true);
             try {
-                const response = await fetch(`${BACKEND_URL}/api/rankmem?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
-                let topListHTML = data.top.length === 0 
-                    ? "Không tìm thấy tin nhắn nào." 
-                    : data.top.map(user => 
-                        `<div class="user-item">${user.rank}. ${user.name} - ${user.messages} tin</div>`
-                    ).join('');
-                const reportHTML = `
+                const res = await fetch(`${BACKEND_URL}/api/rankmem?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Lỗi');
+                
+                let listHTML = data.top.length === 0 ? "Không có dữ liệu." : data.top.map(u => 
+                    `<div class="user-item">#${u.rank} <b>${u.name}</b> (${u.messages} tin)</div>`
+                ).join('');
+
+                resultDiv.innerHTML = `
                     <div class="report-card">
-                        <div class="report-header">🏆 Top 10 - ${data.group_title}</div>
-                        <div class="report-summary">
-                            ${topListHTML}
-                        </div>
-                        <div class="report-footer">(Đã quét ${data.scanned} tin)</div>
-                    </div>
-                `;
-                resultDiv.innerHTML = reportHTML;
-                const chartEl = document.getElementById('hourlyChart');
-                if (chartEl) chartEl.parentElement.style.display = 'none';
-            } catch (error) {
-                resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
-            }
+                        <div class="report-header">🏆 Top Active - ${data.group_title}</div>
+                        <div class="report-summary">${listHTML}</div>
+                        <div class="report-footer">Quét ${data.scanned} tin nhắn</div>
+                    </div>`;
+            } catch (err) { resultDiv.innerHTML = `<div class="report-card">Lỗi: ${err.message}</div>`; }
             showLoading(false);
         });
 
+        // 2. Sự kiện: Quét Join/Leave (Thường)
         btnCheckgroup.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
             showLoading(true);
             try {
-                const response = await fetch(`${BACKEND_URL}/api/checkgroup?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
-                let reportHTML = `
+                const res = await fetch(`${BACKEND_URL}/api/checkgroup?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Lỗi');
+
+                let html = `
                     <div class="report-card">
-                        <div class="report-header">📊 Báo cáo - ${data.group_title}</div>
+                        <div class="report-header">📊 Báo cáo (Msg) - ${data.group_title}</div>
                         <div class="report-summary">
-                            <div class="user-item">+ ${data.joins} thành viên join</div>
-                            <div class="user-item">- ${data.leaves} thành viên rời</div>
-                        </div>
-                `;
-                if (data.joins_list && data.joins_list.length > 0) {
-                    reportHTML += `
-                        <div class="user-list-container">
-                            <h4>Danh sách Join:</h4>
-                            ${data.joins_list.map(name => `<div class="user-item">${name}</div>`).join('')}
-                        </div>
-                    `;
-                }
-                if (data.leaves_list && data.leaves_list.length > 0) {
-                    reportHTML += `
-                        <div class="user-list-container">
-                            <h4>Danh sách Rời:</h4>
-                            ${data.leaves_list.map(name => `<div class="user-item">${name}</div>`).join('')}
-                        </div>
-                    `;
-                }
-                reportHTML += `
-                        <div class="report-footer">(Đã quét ${data.scanned} tin)</div>
-                    </div>
-                `;
-                resultDiv.innerHTML = reportHTML;
-                const chartEl = document.getElementById('hourlyChart');
-                if (chartEl) chartEl.parentElement.style.display = 'none';
-            } catch (error) {
-                resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
-            }
+                            <div class="user-item">Tham gia: <b>${data.joins}</b></div>
+                            <div class="user-item">Rời nhóm: <b>${data.leaves}</b></div>
+                        </div>`;
+                
+                if (data.joins_list.length > 0) 
+                    html += `<div class="user-list-container"><h4>Join:</h4>${data.joins_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
+                if (data.leaves_list.length > 0) 
+                    html += `<div class="user-list-container"><h4>Leave:</h4>${data.leaves_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
+                
+                html += `<div class="report-footer">Quét ${data.scanned} tin nhắn</div></div>`;
+                resultDiv.innerHTML = html;
+            } catch (err) { resultDiv.innerHTML = `<div class="report-card">Lỗi: ${err.message}</div>`; }
             showLoading(false);
         });
 
-        // ==============================================
-        // === 🚀 THAY ĐỔI 2: JAVASCRIPT BỎ Ô THỨ 4 ===
-        // ==============================================
-        btnDashboard.addEventListener('click', async () => {
+        // 3. Sự kiện: Quét Group Ẩn (Admin Log) - MỚI
+        btnCheckHidden.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
 
+            // Cảnh báo
+            if(!confirm("⚠️ CHỨC NĂNG DÀNH CHO ADMIN\n\n- Yêu cầu: Bạn phải là Admin của nhóm.\n- Giới hạn: Telegram chỉ lưu Admin Log trong 48 giờ gần nhất.\n\nBạn có muốn tiếp tục quét?")) return;
+
             showLoading(true);
-            
-            if (myChart) {
-                myChart.destroy();
-            }
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/checkgroup_hidden?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Lỗi');
+
+                let html = `
+                    <div class="report-card" style="border-left: 5px solid #ff9500;">
+                        <div class="report-header">🕵️ Log Admin - ${data.group_title}</div>
+                        <div class="report-summary">
+                            <div class="user-item" style="color:green">➕ Join: <b>${data.joins}</b></div>
+                            <div class="user-item" style="color:red">➖ Leave: <b>${data.leaves}</b></div>
+                        </div>`;
+                
+                if (data.joins_list.length > 0) 
+                    html += `<div class="user-list-container"><h4>Danh sách Join:</h4>${data.joins_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
+                if (data.leaves_list.length > 0) 
+                    html += `<div class="user-list-container"><h4>Danh sách Leave:</h4>${data.leaves_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
+                
+                html += `<div class="report-footer">Quét ${data.scanned} sự kiện Log</div></div>`;
+                resultDiv.innerHTML = html;
+            } catch (err) { resultDiv.innerHTML = `<div class="report-card">Lỗi: ${err.message}</div>`; }
+            showLoading(false);
+        });
+
+        // 4. Sự kiện: Dashboard
+        btnDashboard.addEventListener('click', async () => {
+            const params = getParams();
+            if (!params) return;
+            showLoading(true);
+            if (myChart) myChart.destroy();
 
             try {
-                const response = await fetch(`${BACKEND_URL}/api/dashboard?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
-                const data = await response.json();
+                const res = await fetch(`${BACKEND_URL}/api/dashboard?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Lỗi');
 
-                if (!response.ok) throw new Error(data.detail || 'Lỗi không xác định');
-
-                const hourlyData = data.hourly_data || {};
-                const labels = [];
-                const chartData = [];
-                
-                for (let i = 0; i < 24; i++) {
-                    labels.push(`${i}h`);
-                    chartData.push(hourlyData[i] || 0); 
-                }
-
-                // **Code HTML mới (chỉ 3 ô)**
-                const reportHTML = `
+                resultDiv.innerHTML = `
                     <div class="report-card">
                         <div class="report-header">📈 Dashboard - ${data.group_title}</div>
-                        
                         <div class="dashboard-stats">
-                            <div class="stat-item">
-                                <div class="label">Tổng tin nhắn</div>
-                                <div class="value">${data.total_posts.toLocaleString('vi-VN')}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="label">Thành viên HĐ</div>
-                                <div class="value">${data.total_active_users.toLocaleString('vi-VN')}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="label">Tổng thành viên</div>
-                                <div class="value">${data.total_members.toLocaleString('vi-VN')}</div>
-                            </div>
-                            
-                            </div>
-                    </div>
+                            <div class="stat-item"><div class="label">Tổng Tin</div><div class="value">${data.total_posts}</div></div>
+                            <div class="stat-item"><div class="label">User Chat</div><div class="value">${data.total_active_users}</div></div>
+                            <div class="stat-item"><div class="label">Tổng Mem</div><div class="value">${data.total_members}</div></div>
+                        </div>
+                    </div>`;
+                
+                chartContainer.style.display = 'block';
+                const labels = Array.from({length: 24}, (_, i) => `${i}h`);
+                const chartData = labels.map((_, i) => data.hourly_data[i] || 0);
 
-                    <div class="chart-container" style="display: block;">
-                        <canvas id="hourlyChart"></canvas>
-                    </div>
-                `;
-                
-                resultDiv.innerHTML = reportHTML;
-                
-                // Code vẽ biểu đồ (giữ nguyên)
                 const ctx = document.getElementById('hourlyChart').getContext('2d');
                 myChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: labels, 
+                        labels: labels,
                         datasets: [{
-                            label: 'Số tin nhắn',
+                            label: 'Tin nhắn',
                             data: chartData,
-                            backgroundColor: 'rgba(0, 122, 255, 0.6)',
-                            borderColor: 'rgba(0, 122, 255, 1)',
-                            borderWidth: 1
+                            backgroundColor: '#007aff'
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.dataset.label}: ${context.parsed.y} tin`;
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    color: 'var(--tg-theme-text-color, #000)'
-                                }
-                            },
-                            x: {
-                                ticks: {
-                                    color: 'var(--tg-theme-text-color, #000)'
-                                }
-                            }
-                        }
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
                     }
                 });
-
-            } catch (error) {
-                resultDiv.innerHTML = `<div class="report-card">Lỗi: ${error.message}</div>`;
-            }
+            } catch (err) { resultDiv.innerHTML = `<div class="report-card">Lỗi: ${err.message}</div>`; }
             showLoading(false);
         });
-
     </script>
-
 </body>
 </html>

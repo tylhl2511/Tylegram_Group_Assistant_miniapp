@@ -6,10 +6,10 @@ import re
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from telethon import TelegramClient
-from telethon.tl.types import PeerChannel
+from telethon.tl.types import PeerChannel, ChannelAdminLogEventsFilter
 from telethon.sessions import StringSession
 
-# ====== CẤU HÌNH CỦA BẠN (Lấy từ Biến Môi Trường) ======
+# ====== CẤU HÌNH (Lấy từ Biến Môi Trường) ======
 API_ID = int(os.environ.get("TG_API_ID"))
 API_HASH = os.environ.get("TG_API_HASH")
 TELETHON_SESSION = os.environ.get("TG_SESSION")
@@ -22,7 +22,6 @@ GROUP_SOURCES = {
     -1003159720348: "Lăn bóng cùng Mie",
     -1002268148846: "Quay Đầu Là Bờ - Bỏ Cờ Bạc"
 }
-# ============================================
 
 # Khởi tạo API
 app = FastAPI()
@@ -38,9 +37,6 @@ app.add_middleware(
 tele_client = TelegramClient(StringSession(TELETHON_SESSION), API_ID, API_HASH)
 
 # ====== CÁC HÀM UTILS ======
-def escape_md(text: str):
-    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', str(text))
-
 def parse_vn_date(s: str) -> datetime.datetime:
     d = datetime.datetime.strptime(s, "%d/%m/%Y")
     start_local = d.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -60,10 +56,7 @@ async def resolve_chat_entity(raw: str):
         return await tele_client.get_entity(raw)
     try:
         cid = int(raw)
-        
-        # ===== DÒNG ĐÃ SỬA LỖI (BỎ CHỮ 'A') =====
         if cid < -1000000000000: 
-        # =======================================
             cid = int(str(cid)[4:])
         return await tele_client.get_entity(PeerChannel(cid))
     except Exception:
@@ -78,18 +71,18 @@ async def human_name_for_user(user):
     full = (first + " " + last).strip()
     return full or f"id:{user.id}"
 
-# ====== CÁC HÀM QUÉT LỊCH SỬ (Giữ nguyên) ======
+# ====== 1. HÀM QUÉT TIN NHẮN (CŨ - Dành cho group thường) ======
 async def get_rankmem_data(target, date_str_start, date_str_end):
     try:
         start_utc, _ = parse_vn_date(date_str_start)
         _, end_utc = parse_vn_date(date_str_end)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Ngày không hợp lệ. Định dạng DD/MM/YYYY")
+        raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
     async with tele_client:
         try:
             entity = await resolve_chat_entity(target)
         except Exception as e:
-            raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm {target}: {e}")
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm: {e}")
         counter = Counter()
         scanned = 0
         LIMIT = 10000
@@ -103,17 +96,14 @@ async def get_rankmem_data(target, date_str_start, date_str_end):
                 uid = getattr(msg, "sender_id", None)
                 if uid: counter[uid] += 1
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Lỗi khi quét tin nhắn: {e}")
-        if not counter:
-            return {"scanned": scanned, "top": []} 
-        topn = 10
-        rows = counter.most_common(topn)
+            raise HTTPException(status_code=500, detail=f"Lỗi quét tin: {e}")
+        
         results = []
-        for i, (uid, cnt) in enumerate(rows, start=1):
+        for i, (uid, cnt) in enumerate(counter.most_common(10), start=1):
             try:
                 user = await tele_client.get_entity(uid)
                 name = await human_name_for_user(user)
-            except Exception:
+            except:
                 name = f"id:{uid}"
             results.append({"rank": i, "name": name, "messages": cnt})
         return {"scanned": scanned, "top": results, "group_title": getattr(entity, "title", str(target))}
@@ -123,13 +113,13 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
         start_utc, _ = parse_vn_date(date_str_start)
         _, end_utc = parse_vn_date(date_str_end)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Ngày không hợp lệ. Định dạng DD/MM/YYYY")
+        raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
     
     async with tele_client:
         try:
             entity = await resolve_chat_entity(target)
-        except Exception as e:
-            raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm {target}: {e}")
+        except Exception:
+            raise HTTPException(status_code=404, detail="Không tìm thấy nhóm.")
 
         joins, leaves = [], []
         scanned = 0
@@ -139,7 +129,7 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
             async for msg in tele_client.iter_messages(entity, limit=LIMIT, offset_date=end_utc):
                 scanned += 1
                 if not msg.date: continue
-                msg_dt = msg.date.astimezone(datetime.timezone.utc)
+                msg_dt = msg.date.astimezone(timezone.utc)
                 if msg_dt < start_utc: break
                 if hasattr(msg, "action") and msg.action is not None:
                     action = msg.action
@@ -149,58 +139,36 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
                     elif "ChatDeleteUser" in action.__class__.__name__:
                         leaves.append(getattr(action, "user_id", None))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Lỗi khi quét tin nhắn: {e}")
+            raise HTTPException(status_code=500, detail=f"Lỗi quét: {e}")
 
-        # === PHẦN LẤY USERNAME ===
-        join_names, leave_names = [], []
-
-        # Lấy tên người join
+        join_names = []
         for uid in set(joins):
-            if uid:
-                try:
-                    u = await tele_client.get_entity(uid)
-                    name = await human_name_for_user(u)
-                    join_names.append(name) # Trả về tên "sạch"
-                except: 
-                    join_names.append(f"id:{uid}")
+            try:
+                u = await tele_client.get_entity(uid)
+                join_names.append(await human_name_for_user(u))
+            except: join_names.append(f"id:{uid}")
 
-        # Lấy tên người leave
+        leave_names = []
         for uid in set(leaves):
-            if uid:
-                try:
-                    u = await tele_client.get_entity(uid)
-                    name = await human_name_for_user(u)
-                    leave_names.append(name) # Trả về tên "sạch"
-                except: 
-                    leave_names.append(f"id:{uid}")
-        # === KẾT THÚC PHẦN LẤY USERNAME ===
+            try:
+                u = await tele_client.get_entity(uid)
+                leave_names.append(await human_name_for_user(u))
+            except: leave_names.append(f"id:{uid}")
 
-        # === TRẢ VỀ DỮ LIỆU DẠNG DANH SÁCH (JSON ARRAY) ===
-        # === SỬA LẠI RETURN ĐỂ "KHỚP" VỚI FRONTEND CŨ ===
         return {
             "scanned": scanned,
-            "joins": len(join_names),      # ĐỔI TÊN LẠI thành "joins"
-            "leaves": len(leave_names),    # ĐỔI TÊN LẠI thành "leaves"
-            "joins_list": join_names,      # (Frontend của bạn sẽ dùng cái này sau)
-            "leaves_list": leave_names,     # (Frontend của bạn sẽ dùng cái này sau)
+            "joins": len(join_names),
+            "leaves": len(leave_names),
+            "joins_list": join_names,
+            "leaves_list": leave_names,
             "group_title": getattr(entity, "title", str(target))
         }
 
-# === DÁN HÀM NÀY VÀO FILE BACKEND (FastAPI) ===
-
-async def get_dashboard_data(target, date_str_start, date_str_end):
+# ====== 2. HÀM QUÉT GROUP ẨN (MỚI - Dùng Admin Log) ======
+async def get_hidden_group_data(target, date_str_start, date_str_end):
     try:
-        # Setup ngày tháng (giống hệt code cũ)
         start_utc, _ = parse_vn_date(date_str_start)
         _, end_utc = parse_vn_date(date_str_end)
-        
-        # Cần định nghĩa GMT+7 (bạn có thể copy từ hàm cũ)
-        class GMT7(datetime.tzinfo):
-            def utcoffset(self, dt): return timedelta(hours=7)
-            def tzname(self, dt): return "GMT+7"
-            def dst(self, dt): return timedelta(0)
-        gmt7 = GMT7()
-
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
 
@@ -208,80 +176,114 @@ async def get_dashboard_data(target, date_str_start, date_str_end):
         try:
             entity = await resolve_chat_entity(target)
         except Exception as e:
-            raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm {target}: {e}")
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy nhóm: {e}")
 
-        # === KHỞI TẠO CÁC BỘ ĐẾM ===
-        total_posts = 0       # 1. Đếm tổng bài viết
-        active_users = Counter()  # 2. Đếm thành viên hoạt động
-        hourly_density = Counter() # 3. Đếm mật độ theo giờ
-
-        scanned = 0 # Thêm biến đếm tin đã quét
-        LIMIT = 50000 # Giới hạn quét
+        join_names, leave_names = [], []
+        scanned_events = 0
+        
+        # Bộ lọc chỉ lấy Join và Leave
+        admin_log_filter = ChannelAdminLogEventsFilter(join=True, leave=True)
 
         try:
-            # Quét tin nhắn (giống hệt code cũ)
+            # Admin Log chỉ lưu tối đa 48h
+            async for event in tele_client.iter_admin_log(entity, limit=None, events=admin_log_filter):
+                if not event.date: continue
+                event_dt = event.date.astimezone(timezone.utc)
+                
+                if event_dt > end_utc: continue
+                if event_dt < start_utc: break # Dừng nếu quá ngày bắt đầu
+
+                scanned_events += 1
+
+                if event.join:
+                    name = await human_name_for_user(event.user)
+                    join_names.append(name)
+                
+                if event.leave:
+                    name = await human_name_for_user(event.user)
+                    leave_names.append(name)
+                    
+        except Exception as e:
+            raise HTTPException(status_code=403, detail=f"Lỗi: Bạn cần quyền ADMIN để quét Log! ({str(e)})")
+
+        return {
+            "group_title": getattr(entity, "title", str(target)) + " (Admin Log)",
+            "scanned": scanned_events,
+            "joins": len(join_names),
+            "leaves": len(leave_names),
+            "joins_list": join_names,
+            "leaves_list": leave_names
+        }
+
+# ====== 3. DASHBOARD (Giữ nguyên) ======
+async def get_dashboard_data(target, date_str_start, date_str_end):
+    try:
+        start_utc, _ = parse_vn_date(date_str_start)
+        _, end_utc = parse_vn_date(date_str_end)
+        class GMT7(datetime.tzinfo):
+            def utcoffset(self, dt): return timedelta(hours=7)
+        gmt7 = GMT7()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ngày lỗi.")
+
+    async with tele_client:
+        try:
+            entity = await resolve_chat_entity(target)
+        except:
+            raise HTTPException(status_code=404, detail="Không tìm thấy nhóm.")
+
+        total_posts = 0
+        active_users = Counter()
+        hourly_density = Counter()
+        scanned = 0
+        LIMIT = 50000
+
+        try:
             async for msg in tele_client.iter_messages(entity, limit=LIMIT, offset_date=end_utc):
                 scanned += 1
                 if not msg.date: continue
                 msg_dt_utc = msg.date.astimezone(timezone.utc)
-                
-                if msg_dt_utc < start_utc: break # Vẫn dừng khi hết ngày
+                if msg_dt_utc < start_utc: break 
                 if hasattr(msg, "action") and msg.action is not None: continue
 
-                # === GHI NHẬN DỮ LIỆU ===
-                total_posts += 1 # 1. Ghi nhận bài viết
-
+                total_posts += 1
                 uid = getattr(msg, "sender_id", None)
-                if uid:
-                    active_users[uid] += 1 # 2. Ghi nhận người gửi
-                
-                # 3. Ghi nhận giờ (đổi về giờ VN GMT+7)
-                msg_hour_vn = msg.date.astimezone(gmt7).hour # Lấy giờ (0-23)
+                if uid: active_users[uid] += 1
+                msg_hour_vn = msg.date.astimezone(gmt7).hour
                 hourly_density[msg_hour_vn] += 1
-
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Lỗi khi quét tin nhắn: {e}")
+            raise HTTPException(status_code=500, detail=f"Lỗi: {e}")
 
-        # Lấy tổng thành viên (giống ý tưởng "Analytics" trước)
         total_members = 0
         try:
             participants = await tele_client.get_participants(entity, limit=0)
             total_members = participants.total
-        except Exception:
-            pass # Bỏ qua nếu lỗi
+        except: pass
 
-        # Xử lý dữ liệu "mật độ"
-        hourly_data = dict(hourly_density.most_common())
-
-        # Trả về cục JSON "siêu to"
         return {
             "group_title": getattr(entity, "title", str(target)),
             "total_members": total_members,
-            "total_posts": total_posts, # Trả lời câu 1
-            "total_active_users": len(active_users), # Trả lời câu 2 & 3
-            "engagement_rate": (len(active_users) / total_members) * 100 if total_members > 0 else 0,
-            "hourly_data": hourly_data, # Trả lời câu 4
-            "scanned": scanned # Trả về cả số tin đã quét
+            "total_posts": total_posts,
+            "total_active_users": len(active_users),
+            "hourly_data": dict(hourly_density.most_common()),
+            "scanned": scanned
         }
-# === KẾT THÚC HÀM MỚI ===
 
-# ====== CÁC ĐIỂM CUỐI API (Giữ nguyên) ======
+# ====== ROUTERS ======
 @app.get("/")
-def read_root():
-    return {"message": "Chào mừng đến với API Bot!"}
+def read_root(): return {"message": "API Running"}
 @app.get("/api/groups")
-def get_groups_list():
-    return GROUP_SOURCES
+def get_groups_list(): return GROUP_SOURCES
 @app.get("/api/rankmem")
 async def api_rankmem(target: str, start_date: str, end_date: str):
-    data = await get_rankmem_data(target, start_date, end_date)
-    return data
-@app.get("/api/dashboard")
-async def api_dashboard(target: str, start_date: str, end_date: str):
-    data = await get_dashboard_data(target, start_date, end_date)
-    return data
+    return await get_rankmem_data(target, start_date, end_date)
 @app.get("/api/checkgroup")
 async def api_checkgroup(target: str, start_date: str, end_date: str):
-    data = await get_checkgroup_data(target, start_date, end_date)
-    return data
-
+    return await get_checkgroup_data(target, start_date, end_date)
+@app.get("/api/dashboard")
+async def api_dashboard(target: str, start_date: str, end_date: str):
+    return await get_dashboard_data(target, start_date, end_date)
+# Router mới cho Admin Log
+@app.get("/api/checkgroup_hidden")
+async def api_checkgroup_hidden(target: str, start_date: str, end_date: str):
+    return await get_hidden_group_data(target, start_date, end_date)
