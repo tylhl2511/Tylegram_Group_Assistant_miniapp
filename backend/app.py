@@ -6,13 +6,32 @@ import re
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from telethon import TelegramClient
-from telethon.tl.types import PeerChannel, ChannelAdminLogEventsFilter
+# === IMPORT CHO THƯ VIỆN CŨ ===
+from telethon.tl.types import (
+    PeerChannel, ChannelAdminLogEventsFilter,
+    ChannelAdminLogEventActionParticipantJoin,
+    ChannelAdminLogEventActionParticipantLeave
+)
+# ==============================
 from telethon.sessions import StringSession
 
-# ====== CẤU HÌNH (Lấy từ Biến Môi Trường) ======
-API_ID = int(os.environ.get("TG_API_ID"))
+# ====== CẤU HÌNH (ĐÃ SỬA LẠI CHO PRODUCTION) ======
+API_ID_STR = os.environ.get("TG_API_ID")
 API_HASH = os.environ.get("TG_API_HASH")
 TELETHON_SESSION = os.environ.get("TG_SESSION")
+
+# Kiểm tra xem các biến môi trường đã được set hay chưa
+if not API_ID_STR or not API_HASH or not TELETHON_SESSION:
+    print("LỖI: Vui lòng set các biến môi trường TG_API_ID, TG_API_HASH, và TG_SESSION")
+    # Gán giá trị mặc định để tránh crash ngay lập tức, nhưng sẽ không hoạt động
+    API_ID = 0
+else:
+    try:
+        API_ID = int(API_ID_STR)
+    except ValueError:
+        print(f"LỖI: TG_API_ID '{API_ID_STR}' không phải là một con số.")
+        API_ID = 0
+# ============================================
 
 GROUP_SOURCES = {
     -1003037580357: "Hẻm Gaming",
@@ -22,6 +41,7 @@ GROUP_SOURCES = {
     -1003159720348: "Lăn bóng cùng Mie",
     -1002268148846: "Quay Đầu Là Bờ - Bỏ Cờ Bạc"
 }
+# ============================================
 
 # Khởi tạo API
 app = FastAPI()
@@ -69,6 +89,7 @@ async def human_name_for_user(user):
     first = getattr(user, "first_name", "") or ""
     last = getattr(user, "last_name", "") or ""
     full = (first + " " + last).strip()
+    # Nếu tên rỗng, mới dùng ID
     return full or f"id:{user.id}"
 
 # ====== 1. HÀM QUÉT TIN NHẮN (CŨ - Dành cho group thường) ======
@@ -164,7 +185,7 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
             "group_title": getattr(entity, "title", str(target))
         }
 
-# ====== 2. HÀM QUÉT GROUP ẨN (MỚI - Dùng Admin Log) ======
+# ====== 2. HÀM QUÉT GROUP ẨN (SỬA LỖI LẤY TÊN) ======
 async def get_hidden_group_data(target, date_str_start, date_str_end):
     try:
         start_utc, _ = parse_vn_date(date_str_start)
@@ -181,30 +202,62 @@ async def get_hidden_group_data(target, date_str_start, date_str_end):
         join_names, leave_names = [], []
         scanned_events = 0
         
-        # Bộ lọc chỉ lấy Join và Leave
-        admin_log_filter = ChannelAdminLogEventsFilter(join=True, leave=True)
-
         try:
-            # Admin Log chỉ lưu tối đa 48h
-            async for event in tele_client.iter_admin_log(entity, limit=None, events=admin_log_filter):
+            # Lấy TẤT CẢ log (không lọc)
+            async for event in tele_client.iter_admin_log(entity, limit=None):
+            
                 if not event.date: continue
                 event_dt = event.date.astimezone(timezone.utc)
                 
                 if event_dt > end_utc: continue
-                if event_dt < start_utc: break # Dừng nếu quá ngày bắt đầu
+                if event_dt < start_utc: break 
 
                 scanned_events += 1
-
-                if event.join:
-                    name = await human_name_for_user(event.user)
-                    join_names.append(name)
                 
-                if event.leave:
-                    name = await human_name_for_user(event.user)
-                    leave_names.append(name)
+                action = event.action
+                user_affected_peer = None # Đây là Peer hoặc User (tối giản)
+
+                # Trường hợp: Admin thêm member hoặc User tự join bằng link
+                if isinstance(action, ChannelAdminLogEventActionParticipantJoin):
+                    if hasattr(event, 'target') and event.target:
+                        user_affected_peer = event.target
+                    else:
+                        user_affected_peer = event.user
+                    
+                    if user_affected_peer:
+                        try:
+                            # === SỬA LỖI: Luôn gọi get_entity() để lấy thông tin đầy đủ ===
+                            user_entity = await tele_client.get_entity(user_affected_peer)
+                            name = await human_name_for_user(user_entity) # Truyền user đầy đủ
+                            join_names.append(name)
+                        except Exception:
+                            # Nếu lỗi (user bị xóa...) thì dùng ID
+                            uid = getattr(user_affected_peer, 'id', 'unknown')
+                            join_names.append(f"id:{uid}")
+                
+                # Trường hợp: User bị kick hoặc tự leave
+                elif isinstance(action, ChannelAdminLogEventActionParticipantLeave):
+                    if hasattr(event, 'target') and event.target:
+                        user_affected_peer = event.target
+                    else:
+                        user_affected_peer = event.user
+                        
+                    if user_affected_peer:
+                        try:
+                            # === SỬA LỖI: Luôn gọi get_entity() để lấy thông tin đầy đủ ===
+                            user_entity = await tele_client.get_entity(user_affected_peer)
+                            name = await human_name_for_user(user_entity) # Truyền user đầy đủ
+                            leave_names.append(name)
+                        except Exception:
+                            # Nếu lỗi (user bị xóa...) thì dùng ID
+                            uid = getattr(user_affected_peer, 'id', 'unknown')
+                            leave_names.append(f"id:{uid}")
+                # =================================================================
                     
         except Exception as e:
-            raise HTTPException(status_code=403, detail=f"Lỗi: Bạn cần quyền ADMIN để quét Log! ({str(e)})")
+            if "ChatAdminLogInvalidError" in str(e):
+                 raise HTTPException(status_code=403, detail=f"Lỗi: Bạn cần quyền ADMIN để quét Log!")
+            raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
 
         return {
             "group_title": getattr(entity, "title", str(target)) + " (Admin Log)",
@@ -222,6 +275,8 @@ async def get_dashboard_data(target, date_str_start, date_str_end):
         _, end_utc = parse_vn_date(date_str_end)
         class GMT7(datetime.tzinfo):
             def utcoffset(self, dt): return timedelta(hours=7)
+            def tzname(self, dt): return "GMT+7"
+            def dst(self, dt): return timedelta(0)
         gmt7 = GMT7()
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày lỗi.")

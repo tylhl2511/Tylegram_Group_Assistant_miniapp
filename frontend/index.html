@@ -92,6 +92,7 @@
             <button id="btn-checkgroup">📢 Quét Tin Nhắn (Thường)</button>
         </div>
         
+        <!-- NÚT MỚI CHO GROUP ẨN -->
         <button id="btn-checkhidden" class="btn-admin-log">🕵️ Quét Group Ẩn (Admin Log)</button>
         
         <button id="btn-dashboard">📈 Dashboard Phân Tích</button>
@@ -104,9 +105,9 @@
     </div>
 
     <script>
-        // === CẤU HÌNH URL ===
+        // === CẤU HÌNH URL (ĐÃ SỬA LẠI CHO PRODUCTION) ===
         const BACKEND_URL = "https://tele-miniapp-backend.onrender.com"; 
-        // ====================
+        // ===============================================
 
         const tg = window.Telegram.WebApp;
         tg.ready();
@@ -226,37 +227,41 @@
             showLoading(false);
         });
 
-        // 3. Sự kiện: Quét Group Ẩn (Admin Log) - MỚI
+        // 3. Sự kiện: Quét Group Ẩn (Admin Log)
         btnCheckHidden.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
 
-            // Cảnh báo
-            if(!confirm("⚠️ CHỨC NĂNG DÀNH CHO ADMIN\n\n- Yêu cầu: Bạn phải là Admin của nhóm.\n- Giới hạn: Telegram chỉ lưu Admin Log trong 48 giờ gần nhất.\n\nBạn có muốn tiếp tục quét?")) return;
+            // Cảnh báo (sửa lại dùng tg.showConfirm thay vì confirm)
+            tg.showConfirm("⚠️ CHỨC NĂNG DÀNH CHO ADMIN\n\n- Yêu cầu: Bạn phải là Admin của nhóm.\n- Giới hạn: Telegram chỉ lưu Admin Log trong 48 giờ gần nhất.\n\nBạn có muốn tiếp tục quét?", 
+                async (isOk) => {
+                    if (!isOk) return;
 
-            showLoading(true);
-            try {
-                const res = await fetch(`${BACKEND_URL}/api/checkgroup_hidden?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'Lỗi');
+                    showLoading(true);
+                    try {
+                        const res = await fetch(`${BACKEND_URL}/api/checkgroup_hidden?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.detail || 'Lỗi');
 
-                let html = `
-                    <div class="report-card" style="border-left: 5px solid #ff9500;">
-                        <div class="report-header">🕵️ Log Admin - ${data.group_title}</div>
-                        <div class="report-summary">
-                            <div class="user-item" style="color:green">➕ Join: <b>${data.joins}</b></div>
-                            <div class="user-item" style="color:red">➖ Leave: <b>${data.leaves}</b></div>
-                        </div>`;
-                
-                if (data.joins_list.length > 0) 
-                    html += `<div class="user-list-container"><h4>Danh sách Join:</h4>${data.joins_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
-                if (data.leaves_list.length > 0) 
-                    html += `<div class="user-list-container"><h4>Danh sách Leave:</h4>${data.leaves_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
-                
-                html += `<div class="report-footer">Quét ${data.scanned} sự kiện Log</div></div>`;
-                resultDiv.innerHTML = html;
-            } catch (err) { resultDiv.innerHTML = `<div class="report-card">Lỗi: ${err.message}</div>`; }
-            showLoading(false);
+                        let html = `
+                            <div class="report-card" style="border-left: 5px solid #ff9500;">
+                                <div class="report-header">🕵️ Log Admin - ${data.group_title}</div>
+                                <div class="report-summary">
+                                    <div class="user-item" style="color:green">➕ Join: <b>${data.joins}</b></div>
+                                    <div class="user-item" style="color:red">➖ Leave: <b>${data.leaves}</b></div>
+                                </div>`;
+                        
+                        if (data.joins_list.length > 0) 
+                            html += `<div class="user-list-container"><h4>Danh sách Join:</h4>${data.joins_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
+                        if (data.leaves_list.length > 0) 
+                            html += `<div class="user-list-container"><h4>Danh sách Leave:</h4>${data.leaves_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
+                        
+                        html += `<div class="report-footer">Quét ${data.scanned} sự kiện Log</div></div>`;
+                        resultDiv.innerHTML = html;
+                    } catch (err) { resultDiv.innerHTML = `<div class="report-card">Lỗi: ${err.message}</div>`; }
+                    showLoading(false);
+                }
+            );
         });
 
         // 4. Sự kiện: Dashboard
@@ -285,7 +290,7 @@
                 const labels = Array.from({length: 24}, (_, i) => `${i}h`);
                 const chartData = labels.map((_, i) => data.hourly_data[i] || 0);
 
-                const ctx = document.getElementById('hourlyChart').getContext('2d');
+                const ctx = document.getElementById('hourlyChart').getContext('id') || 'hourlyChart').getContext('2d');
                 myChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
