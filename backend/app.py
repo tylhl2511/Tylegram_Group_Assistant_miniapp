@@ -16,22 +16,21 @@ from telethon.tl.types import (
 from telethon.sessions import StringSession
 from contextlib import asynccontextmanager # <-- THÊM IMPORT NÀY
 
-# ====== CẤU HÌNH (ĐÃ SỬA LẠI CHO PRODUCTION) ======
+# ====== CẤU HÌNH (SỬA LẠI KIỂM TRA LỖI) ======
 API_ID_STR = os.environ.get("TG_API_ID")
 API_HASH = os.environ.get("TG_API_HASH")
 TELETHON_SESSION = os.environ.get("TG_SESSION")
 
 # Kiểm tra xem các biến môi trường đã được set hay chưa
 if not API_ID_STR or not API_HASH or not TELETHON_SESSION:
-    print("LỖI: Vui lòng set các biến môi trường TG_API_ID, TG_API_HASH, và TG_SESSION")
-    # Gán giá trị mặc định để tránh crash ngay lập tức, nhưng sẽ không hoạt động
-    API_ID = 0
+    # Nếu thiếu, crash app ngay lập tức với lỗi rõ ràng
+    raise ValueError("LỖI KHỞI ĐỘNG: Vui lòng set các biến môi trường TG_API_ID, TG_API_HASH, và TG_SESSION trên Render.com")
 else:
     try:
         API_ID = int(API_ID_STR)
     except ValueError:
-        print(f"LỖI: TG_API_ID '{API_ID_STR}' không phải là một con số.")
-        API_ID = 0
+        # Nếu API_ID không phải là số
+        raise ValueError(f"LỖI KHỞI ĐỘNG: TG_API_ID '{API_ID_STR}' không phải là một con số.")
 # ============================================
 
 GROUP_SOURCES = {
