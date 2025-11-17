@@ -6,17 +6,9 @@ import re
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from telethon import TelegramClient
-# === IMPORT CHO THƯ VIỆN MỚI (Render đang cài 1.42.0) ===
-from telethon.tl.types import (
-    PeerChannel, ChannelAdminLogEventsFilter,
-    # Đây là các class cho phiên bản Telethon mới
-    ChannelAdminLogEventActionParticipantJoinByLink,
-    ChannelAdminLogEventActionParticipantJoin,
-    ChannelAdminLogEventActionParticipantLeave
-)
-# ==============================
+from telethon.tl.types import PeerChannel
 from telethon.sessions import StringSession
-from contextlib import asynccontextmanager # <-- THÊM IMPORT NÀY
+from contextlib import asynccontextmanager
 
 # ====== CẤU HÌNH (SỬA LẠI KIỂM TRA LỖI) ======
 API_ID_STR = os.environ.get("TG_API_ID")
@@ -25,15 +17,12 @@ TELETHON_SESSION = os.environ.get("TG_SESSION")
 
 # Kiểm tra xem các biến môi trường đã được set hay chưa
 if not API_ID_STR or not API_HASH or not TELETHON_SESSION:
-    # Nếu thiếu, crash app ngay lập tức với lỗi rõ ràng
     raise ValueError("LỖI KHỞI ĐỘNG: Vui lòng set các biến môi trường TG_API_ID, TG_API_HASH, và TG_SESSION trên Render.com")
 else:
     try:
         API_ID = int(API_ID_STR)
     except ValueError:
-        # Nếu API_ID không phải là số
         raise ValueError(f"LỖI KHỞI ĐỘNG: TG_API_ID '{API_ID_STR}' không phải là một con số.")
-# ============================================
 
 GROUP_SOURCES = {
     -1003037580357: "Hẻm Gaming",
@@ -43,38 +32,34 @@ GROUP_SOURCES = {
     -1003159720348: "Lăn bóng cùng Mie",
     -1002268148846: "Quay Đầu Là Bờ - Bỏ Cờ Bạc"
 }
-# ============================================
 
-# Khai báo tele_client ở đây nhưng chưa khởi tạo
 tele_client = None
 
-# === THÊM LIFESPAN ĐỂ QUẢN LÝ KẾT NỐI ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global tele_client
     print("Ứng dụng đang khởi động...")
-    # Khởi tạo Client
     tele_client = TelegramClient(StringSession(TELETHON_SESSION), API_ID, API_HASH)
     print("Đang kết nối đến Telegram...")
     
     try:
         await tele_client.connect()
         if not await tele_client.is_user_authorized():
-            print("LỖI: Session không hợp lệ hoặc đã hết hạn!")
+            print("⚠️  LỖI: Session không hợp lệ hoặc đã hết hạn!")
+            print("Vui lòng tạo session string mới và update TG_SESSION environment variable.")
         else:
-            print("Đã kết nối Telegram thành công!")
+            print("✅ Đã kết nối Telegram thành công!")
     except Exception as e:
-        print(f"LỖI không thể kết nối Telegram: {e}")
+        print(f"❌ LỖI không thể kết nối Telegram: {e}")
+        print(f"Kiểm tra các biến môi trường: TG_API_ID, TG_API_HASH, TG_SESSION")
 
-    yield # Đây là lúc ứng dụng chạy
+    yield
 
     print("Ứng dụng đang tắt...")
     if tele_client and tele_client.is_connected():
         await tele_client.disconnect()
     print("Đã ngắt kết nối Telegram.")
-# ==========================================
 
-# Khởi tạo API và gán lifespan
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
@@ -83,10 +68,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# === XÓA DÒNG KHỞI TẠO CLIENT CŨ Ở ĐÂY ===
-# (Đã chuyển vào lifespan)
-# tele_client = TelegramClient(StringSession(TELETHON_SESSION), API_ID, API_HASH) 
 
 # ====== CÁC HÀM UTILS ======
 def parse_vn_date(s: str) -> datetime.datetime:
@@ -121,7 +102,6 @@ async def human_name_for_user(user):
     first = getattr(user, "first_name", "") or ""
     last = getattr(user, "last_name", "") or ""
     full = (first + " " + last).strip()
-    # Nếu tên rỗng, mới dùng ID
     return full or f"id:{user.id}"
 
 # ====== 1. HÀM QUÉT TIN NHẮN (CŨ - Dành cho group thường) ======
@@ -132,7 +112,6 @@ async def get_rankmem_data(target, date_str_start, date_str_end):
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
     
-    # Bỏ 'async with tele_client:' vì lifespan đã quản lý
     if not tele_client or not tele_client.is_connected():
         raise HTTPException(status_code=503, detail="Lỗi: Telegram client chưa sẵn sàng.")
 
@@ -172,7 +151,6 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
     
-    # Bỏ 'async with tele_client:' vì lifespan đã quản lý
     if not tele_client or not tele_client.is_connected():
         raise HTTPException(status_code=503, detail="Lỗi: Telegram client chưa sẵn sàng.")
 
@@ -215,7 +193,6 @@ async def get_checkgroup_data(target, date_str_start, date_str_end):
             leave_names.append(await human_name_for_user(u))
         except: leave_names.append(f"id:{uid}")
 
-    # === SỬA LỖI SYNTAX: Xóa dòng return bị thừa ===
     return {
         "scanned": scanned,
         "joins": len(join_names),
@@ -233,7 +210,6 @@ async def get_hidden_group_data(target, date_str_start, date_str_end):
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày không hợp lệ.")
 
-    # Bỏ 'async with tele_client:' vì lifespan đã quản lý
     if not tele_client or not tele_client.is_connected():
         raise HTTPException(status_code=503, detail="Lỗi: Telegram client chưa sẵn sàng.")
 
@@ -246,10 +222,7 @@ async def get_hidden_group_data(target, date_str_start, date_str_end):
     scanned_events = 0
     
     try:
-        # Lấy TẤT CẢ log (không lọc)
-        # Phiên bản Telethon mới (1.42.0) vẫn hỗ trợ không lọc, nên an toàn
         async for event in tele_client.iter_admin_log(entity, limit=None):
-        
             if not event.date: continue
             event_dt = event.date.astimezone(timezone.utc)
             
@@ -259,21 +232,13 @@ async def get_hidden_group_data(target, date_str_start, date_str_end):
             scanned_events += 1
             
             action = event.action
-            user_affected_peer = None # Đây là Peer hoặc User (tối giản)
+            user_affected_peer = None
 
-            # === SỬA LOGIC LỌC: Dùng class mới của Telethon 1.42.0 ===
-            # Trường hợp: Admin thêm member
-            if isinstance(action, ChannelAdminLogEventActionParticipantJoin):
-                if hasattr(event, 'target') and event.target: user_affected_peer = event.target
-                else: user_affected_peer = event.user
+            # === SỬA LOGIC LỌC: Dùng string matching để tương thích với các version Telethon ===
+            action_class_name = action.__class__.__name__
             
-            # Trường hợp: User tự join bằng link
-            elif isinstance(action, ChannelAdminLogEventActionParticipantJoinByLink):
-                if hasattr(event, 'target') and event.target: user_affected_peer = event.target
-                else: user_affected_peer = event.user
-
             # Trường hợp: User bị kick hoặc tự leave
-            elif isinstance(action, ChannelAdminLogEventActionParticipantLeave):
+            if 'Leave' in action_class_name or 'ChatDeleteUser' in action_class_name:
                 if hasattr(event, 'target') and event.target: user_affected_peer = event.target
                 else: user_affected_peer = event.user
                     
@@ -286,8 +251,11 @@ async def get_hidden_group_data(target, date_str_start, date_str_end):
                         uid = getattr(user_affected_peer, 'id', 'unknown')
                         leave_names.append(f"id:{uid}")
             
-            # Gộp logic Join lại
-            if isinstance(action, (ChannelAdminLogEventActionParticipantJoin, ChannelAdminLogEventActionParticipantJoinByLink)):
+            # Trường hợp: User join (cả tự join bằng link hoặc được thêm)
+            elif 'Join' in action_class_name or 'Participant' in action_class_name:
+                if hasattr(event, 'target') and event.target: user_affected_peer = event.target
+                else: user_affected_peer = event.user
+                    
                 if user_affected_peer:
                     try:
                         user_entity = await tele_client.get_entity(user_affected_peer)
@@ -296,14 +264,12 @@ async def get_hidden_group_data(target, date_str_start, date_str_end):
                     except Exception:
                         uid = getattr(user_affected_peer, 'id', 'unknown')
                         join_names.append(f"id:{uid}")
-            # =================================================================
-                
+                 
     except Exception as e:
         if "ChatAdminLogInvalidError" in str(e):
              raise HTTPException(status_code=403, detail=f"Lỗi: Bạn cần quyền ADMIN để quét Log!")
         raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
 
-    # === SỬA LỖI SYNTAX: Xóa dòng return bị thừa ===
     return {
         "group_title": getattr(entity, "title", str(target)) + " (Admin Log)",
         "scanned": scanned_events,
@@ -326,7 +292,6 @@ async def get_dashboard_data(target, date_str_start, date_str_end):
     except ValueError:
         raise HTTPException(status_code=400, detail="Ngày lỗi.")
 
-    # Bỏ 'async with tele_client:' vì lifespan đã quản lý
     if not tele_client or not tele_client.is_connected():
         raise HTTPException(status_code=503, detail="Lỗi: Telegram client chưa sẵn sàng.")
 
@@ -386,7 +351,6 @@ async def api_checkgroup(target: str, start_date: str, end_date: str):
 @app.get("/api/dashboard")
 async def api_dashboard(target: str, start_date: str, end_date: str):
     return await get_dashboard_data(target, start_date, end_date)
-# Router mới cho Admin Log
 @app.get("/api/checkgroup_hidden")
 async def api_checkgroup_hidden(target: str, start_date: str, end_date: str):
     return await get_hidden_group_data(target, start_date, end_date)
