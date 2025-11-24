@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bot Điều Khiển</title>
+    <title>Bot Điều Khiển (Local)</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -89,7 +89,7 @@
 
         <div class="button-group">
             <button id="btn-rankmem">🏆 Top Tương Tác</button>
-            <button id="btn-checkgroup">📢 Quét Tin Nhắn (Thường)</button>
+            <button id="btn-checkgroup" style="display:none">📢 Quét Thường</button> 
         </div>
         
         <!-- NÚT MỚI CHO GROUP ẨN -->
@@ -105,9 +105,9 @@
     </div>
 
     <script>
-        // === CẤU HÌNH URL (ĐÃ SỬA LẠI CHO PRODUCTION) ===
-        const BACKEND_URL = "https://tele-miniapp-backend.onrender.com"; 
-        // ===============================================
+        // === CẤU HÌNH URL CHO LOCALHOST ===
+        const BACKEND_URL = "http://127.0.0.1:8000"; 
+        // ==================================
 
         const tg = window.Telegram.WebApp;
         tg.ready();
@@ -117,8 +117,7 @@
         const startDateInput = document.getElementById('start-date');
         const endDateInput = document.getElementById('end-date');
         const btnRankmem = document.getElementById('btn-rankmem');
-        const btnCheckgroup = document.getElementById('btn-checkgroup');
-        const btnCheckHidden = document.getElementById('btn-checkhidden'); // Nút mới
+        const btnCheckHidden = document.getElementById('btn-checkhidden'); 
         const btnDashboard = document.getElementById('btn-dashboard');
         const resultDiv = document.getElementById('result');
         const chartContainer = document.querySelector('.chart-container');
@@ -126,12 +125,11 @@
 
         function showLoading(isLoading) {
             if (isLoading) {
-                resultDiv.innerHTML = `<div class="report-card">Đang quét dữ liệu, vui lòng chờ...</div>`;
+                resultDiv.innerHTML = `<div class="report-card">Đang xử lý local...</div>`;
                 chartContainer.style.display = 'none';
             }
             app.classList.toggle('loading', isLoading);
             btnRankmem.disabled = isLoading;
-            btnCheckgroup.disabled = isLoading;
             btnDashboard.disabled = isLoading;
             if (btnCheckHidden) btnCheckHidden.disabled = isLoading;
         }
@@ -170,7 +168,12 @@
                     groupSelect.appendChild(option);
                 }
             } catch (error) {
-                groupSelect.innerHTML = '<option value="">Lỗi kết nối Backend</option>';
+                groupSelect.innerHTML = `<option value="">Lỗi: Không kết nối được Backend Local (${BACKEND_URL})</option>`;
+                resultDiv.innerHTML = `<div class="report-card" style="color:red">
+                    <b>Không kết nối được Backend!</b><br>
+                    Hãy chắc chắn bạn đã chạy lệnh:<br>
+                    <code>python -m uvicorn backend.app:app --reload</code>
+                </div>`;
             }
         });
 
@@ -198,42 +201,12 @@
             showLoading(false);
         });
 
-        // 2. Sự kiện: Quét Join/Leave (Thường)
-        btnCheckgroup.addEventListener('click', async () => {
-            const params = getParams();
-            if (!params) return;
-            showLoading(true);
-            try {
-                const res = await fetch(`${BACKEND_URL}/api/checkgroup?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'Lỗi');
-
-                let html = `
-                    <div class="report-card">
-                        <div class="report-header">📊 Báo cáo (Msg) - ${data.group_title}</div>
-                        <div class="report-summary">
-                            <div class="user-item">Tham gia: <b>${data.joins}</b></div>
-                            <div class="user-item">Rời nhóm: <b>${data.leaves}</b></div>
-                        </div>`;
-                
-                if (data.joins_list.length > 0) 
-                    html += `<div class="user-list-container"><h4>Join:</h4>${data.joins_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
-                if (data.leaves_list.length > 0) 
-                    html += `<div class="user-list-container"><h4>Leave:</h4>${data.leaves_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
-                
-                html += `<div class="report-footer">Quét ${data.scanned} tin nhắn</div></div>`;
-                resultDiv.innerHTML = html;
-            } catch (err) { resultDiv.innerHTML = `<div class="report-card">Lỗi: ${err.message}</div>`; }
-            showLoading(false);
-        });
-
-        // 3. Sự kiện: Quét Group Ẩn (Admin Log)
+        // 2. Sự kiện: Quét Group Ẩn (Admin Log)
         btnCheckHidden.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
 
-            // Cảnh báo (sửa lại dùng tg.showConfirm thay vì confirm)
-            tg.showConfirm("⚠️ CHỨC NĂNG DÀNH CHO ADMIN\n\n- Yêu cầu: Bạn phải là Admin của nhóm.\n- Giới hạn: Telegram chỉ lưu Admin Log trong 48 giờ gần nhất.\n\nBạn có muốn tiếp tục quét?", 
+            tg.showConfirm("⚠️ QUÉT LOG ADMIN (Local)\n\nChức năng này cần quyền Admin nhóm.\nTiếp tục?", 
                 async (isOk) => {
                     if (!isOk) return;
 
@@ -264,7 +237,7 @@
             );
         });
 
-        // 4. Sự kiện: Dashboard
+        // 3. Sự kiện: Dashboard
         btnDashboard.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
@@ -290,7 +263,7 @@
                 const labels = Array.from({length: 24}, (_, i) => `${i}h`);
                 const chartData = labels.map((_, i) => data.hourly_data[i] || 0);
 
-                const ctx = document.getElementById('hourlyChart').getContext('id') || 'hourlyChart').getContext('2d');
+                const ctx = document.getElementById('hourlyChart').getContext('2d');
                 myChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
