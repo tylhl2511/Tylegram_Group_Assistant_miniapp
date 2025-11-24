@@ -89,7 +89,8 @@
 
         <div class="button-group">
             <button id="btn-rankmem">🏆 Top Tương Tác</button>
-            <button id="btn-checkgroup" style="display:none">📢 Quét Thường</button> 
+            <!-- ĐÃ HIỆN LẠI NÚT QUÉT THƯỜNG -->
+            <button id="btn-checkgroup">📢 Quét Thường</button> 
         </div>
         
         <!-- NÚT MỚI CHO GROUP ẨN -->
@@ -117,6 +118,7 @@
         const startDateInput = document.getElementById('start-date');
         const endDateInput = document.getElementById('end-date');
         const btnRankmem = document.getElementById('btn-rankmem');
+        const btnCheckgroup = document.getElementById('btn-checkgroup'); // Khai báo lại nút này
         const btnCheckHidden = document.getElementById('btn-checkhidden'); 
         const btnDashboard = document.getElementById('btn-dashboard');
         const resultDiv = document.getElementById('result');
@@ -131,6 +133,7 @@
             app.classList.toggle('loading', isLoading);
             btnRankmem.disabled = isLoading;
             btnDashboard.disabled = isLoading;
+            if (btnCheckgroup) btnCheckgroup.disabled = isLoading;
             if (btnCheckHidden) btnCheckHidden.disabled = isLoading;
         }
         
@@ -201,7 +204,44 @@
             showLoading(false);
         });
 
-        // 2. Sự kiện: Quét Group Ẩn (Admin Log)
+        // 2. Sự kiện: Quét Join/Leave (Thường - Đã mở lại)
+        if (btnCheckgroup) {
+            btnCheckgroup.addEventListener('click', async () => {
+                const params = getParams();
+                if (!params) return;
+                showLoading(true);
+                try {
+                    const res = await fetch(`${BACKEND_URL}/api/checkgroup?target=${params.target}&start_date=${params.startDate}&end_date=${params.endDate}`);
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || 'Lỗi');
+
+                    // Code backend checkgroup thường có thể trả về message deprecated hoặc data
+                    // Nếu bạn chưa update backend thì nó vẫn trả về data cũ
+                    if (data.message && data.message.includes("Deprecated")) {
+                         resultDiv.innerHTML = `<div class="report-card">Chức năng này đã bị tắt trong code backend mới. Hãy dùng nút Admin Log.</div>`;
+                    } else {
+                        let html = `
+                            <div class="report-card">
+                                <div class="report-header">📊 Báo cáo (Msg) - ${data.group_title}</div>
+                                <div class="report-summary">
+                                    <div class="user-item">Tham gia: <b>${data.joins}</b></div>
+                                    <div class="user-item">Rời nhóm: <b>${data.leaves}</b></div>
+                                </div>`;
+                        
+                        if (data.joins_list && data.joins_list.length > 0) 
+                            html += `<div class="user-list-container"><h4>Join:</h4>${data.joins_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
+                        if (data.leaves_list && data.leaves_list.length > 0) 
+                            html += `<div class="user-list-container"><h4>Leave:</h4>${data.leaves_list.map(n=>`<div class="user-item">${n}</div>`).join('')}</div>`;
+                        
+                        html += `<div class="report-footer">Quét ${data.scanned} tin nhắn</div></div>`;
+                        resultDiv.innerHTML = html;
+                    }
+                } catch (err) { resultDiv.innerHTML = `<div class="report-card">Lỗi: ${err.message}</div>`; }
+                showLoading(false);
+            });
+        }
+
+        // 3. Sự kiện: Quét Group Ẩn (Admin Log)
         btnCheckHidden.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
@@ -237,7 +277,7 @@
             );
         });
 
-        // 3. Sự kiện: Dashboard
+        // 4. Sự kiện: Dashboard
         btnDashboard.addEventListener('click', async () => {
             const params = getParams();
             if (!params) return;
